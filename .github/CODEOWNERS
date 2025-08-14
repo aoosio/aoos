@@ -1,0 +1,4 @@
+* @aoosio/maintainers
+/docs/ @aoosio/product
+/api/  @aoosio/engineering
+/ui/   @aoosio/engineering
