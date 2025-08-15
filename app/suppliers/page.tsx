@@ -5,50 +5,108 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table'
+import { useEffect, useState } from 'react'
 
 async function loadSuppliers() {
   const { data, error } = await supabase
     .from('suppliers')
-    .select('id, name, preferred_language, updated_at')
+    .select('id,name,phone_e164,preferred_language,updated_at')
     .order('name', { ascending: true })
   if (error) throw error
   return data
 }
 
+async function loadOrg() {
+  const { data } = await supabase.from('organizations').select('id, default_dial_code').limit(1)
+  return data?.[0]
+}
+
+function normalizeToE164(raw: string, dial: string) {
+  let p = raw.replace(/[\s-]/g, '')
+  if (!p) return ''
+  if (p.startsWith('+')) return p
+  if (dial && dial.startsWith('+')) {
+    p = p.replace(/^0+/, '') // strip leading 0s
+    return `${dial}${p}`
+  }
+  return `+${p}`
+}
+
 export default function SuppliersPage() {
   const { data, mutate } = useSWR('suppliers', loadSuppliers)
+  const [org, setOrg] = useState<{ id: string; default_dial_code: string } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadOrg().then(setOrg)
+  }, [])
 
   async function addSupplier(formData: FormData) {
-    const name = String(formData.get('name') || '')
-    if (!name) return
-    const { error } = await supabase.from('suppliers').insert({ name })
-    if (error) alert(error.message)
-    await mutate()
+    const name = String(formData.get('name') || '').trim()
+    const phoneRaw = String(formData.get('phone') || '').trim()
+    const lang = String(formData.get('lang') || 'ar')
+
+    if (!name) return setMsg('Name is required.')
+    if (!phoneRaw) return setMsg('Phone is required.')
+
+    const e164 = normalizeToE164(phoneRaw, org?.default_dial_code || '+964')
+    if (!/^\+[1-9]\d{7,14}$/.test(e164)) {
+      return setMsg('Invalid phone. Use international format like +9647XXXXXXXX.')
+    }
+
+    setSaving(true); setMsg(null)
+    const { error } = await supabase.from('suppliers').insert({
+      name, phone_e164: e164, preferred_language: lang
+    })
+    setSaving(false)
+    if (error) setMsg(error.message)
+    else {
+      setMsg('Supplier added.')
+      ;(document.getElementById('supplier-form') as HTMLFormElement)?.reset()
+      mutate()
+    }
   }
 
   return (
     <div className="grid gap-6">
       <Card>
         <h1 className="mb-3 text-lg font-semibold">Suppliers</h1>
-        <form action={addSupplier} className="grid gap-2 sm:grid-cols-[1fr_auto]">
-          <div>
+        <form id="supplier-form" action={addSupplier} className="grid gap-3 sm:grid-cols-4">
+          <div className="sm:col-span-2">
             <Label htmlFor="name">Name</Label>
             <Input id="name" name="name" placeholder="Supplier name" />
           </div>
-          <div className="flex items-end"><Button type="submit">Add</Button></div>
+          <div>
+            <Label htmlFor="phone">Phone (WhatsApp)</Label>
+            <Input id="phone" name="phone" placeholder={(org?.default_dial_code || '+964') + '7XXXXXXXX'} />
+          </div>
+          <div>
+            <Label htmlFor="lang">Language</Label>
+            <Select id="lang" name="lang" defaultValue="ar">
+              <option value="ar">AR</option>
+              <option value="en">EN</option>
+            </Select>
+          </div>
+          <div className="sm:col-span-4">
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Add supplier'}</Button>
+            {msg && <span className="ml-3 text-sm text-slate-600">{msg}</span>}
+          </div>
         </form>
       </Card>
 
       <Card>
         <Table>
           <THead>
-            <TR><TH>Name</TH><TH>Language</TH><TH>Updated</TH></TR>
+            <TR><TH>Name</TH><TH>Phone</TH><TH>Language</TH><TH>Updated</TH></TR>
           </THead>
           <TBody>
             {(data ?? []).map((s) => (
               <TR key={s.id}>
                 <TD>{s.name}</TD>
+                <TD>{s.phone_e164 ?? '-'}</TD>
                 <TD>{s.preferred_language?.toUpperCase() ?? '-'}</TD>
                 <TD>{s.updated_at ? new Date(s.updated_at).toLocaleString() : '-'}</TD>
               </TR>
