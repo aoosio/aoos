@@ -21,7 +21,7 @@ const DICT: Record<Lang, Dict> = {
     'common.defaultDialCode': 'Default dial code',
     'common.signIn': 'Sign in',
     'common.signOut': 'Sign out',
-    'common.ready': 'Ready',
+    'common.languageTag': 'Language',
 
     // nav
     'nav.home': 'Home',
@@ -65,27 +65,7 @@ const DICT: Record<Lang, Dict> = {
     'suppliers.updated': 'Saved changes.',
     'suppliers.removed': 'Supplier removed.',
 
-    // POS (Purchase Orders)
-    'pos.title': 'Purchase Orders',
-    'pos.new': 'New PO',
-    'pos.poNumber': 'PO #',
-    'pos.status': 'Status',
-    'pos.promised': 'Promised',
-    'pos.delivered': 'Delivered',
-    'pos.created': 'Created',
-    'pos.count': '# PO',
-
-    // Suggestions
-    'suggestions.title': 'Suggestions',
-    'suggestions.create': 'Create PO',
-    'suggestions.created': 'Created',
-    'suggestions.status': 'Status',
-    'suggestions.recQty': 'Rec. Qty',
-    'suggestions.reason': 'Reason',
-    'suggestions.type': 'Type',
-    'suggestions.act': 'Act',
-
-    // Audit
+    // audit
     'audit.title': 'Audit Log',
     'audit.meta': 'Meta',
     'audit.entity': 'Entity',
@@ -93,21 +73,41 @@ const DICT: Record<Lang, Dict> = {
     'audit.actor': 'Actor',
     'audit.time': 'Time',
 
-    // Home dashboard
-    'home.openInquiries': 'Open inquiries',
-    'home.goToInquiries': 'Go to inquiries',
-    'home.failedWhatsApp': 'Failed WhatsApp sends (last 30d)',
-    'home.seeOutbox': 'See outbox',
-    'home.pendingSuggestions': 'Pending suggestions',
-    'home.reviewNow': 'Review now',
+    // pos
+    'pos.title': 'Purchase Orders',
+    'pos.new': 'New PO',
+    'pos.col.po': 'PO #',
+    'pos.col.status': 'Status',
+    'pos.col.promised': 'Promised',
+    'pos.col.delivered': 'Delivered',
+    'pos.col.created': 'Created',
+
+    // suggestions
+    'sug.title': 'Suggestions',
+    'sug.createPO': 'Create PO',
+    'sug.col.type': 'Type',
+    'sug.col.reason': 'Reason',
+    'sug.col.qty': 'Rec. Qty',
+    'sug.col.status': 'Status',
+    'sug.col.created': 'Created',
+    'sug.col.actions': '',
+
+    // home
+    'home.stats.openInquiries': 'Open inquiries',
+    'home.stats.failedSends': 'Failed WhatsApp sends (last 30d)',
+    'home.stats.pendingSuggestions': 'Pending suggestions',
+    'home.cta.inquiries': 'Go to inquiries',
+    'home.cta.outbox': 'See outbox',
+    'home.cta.reviewNow': 'Review now',
     'home.openSuggestions': 'Open suggestions',
     'home.nextActions': 'Next actions',
-    'home.bulkPrice.title': 'Bulk Price',
-    'home.bulkPrice.desc': 'Ask for tier price where it makes sense',
-    'home.refillWeeks.title': 'Refill Weeks',
-    'home.refillWeeks.desc': 'Create POs for low-cover SKUs',
-    'home.expiryGuard.title': 'Expiry Guard',
-    'home.expiryGuard.desc': 'Resolve expiries before refills',
+    'home.actions.bulkPrice.title': 'Bulk Price',
+    'home.actions.bulkPrice.desc': 'Ask for tier price where it makes sense',
+    'home.actions.refillWeeks.title': 'Refill Weeks',
+    'home.actions.refillWeeks.desc': 'Create POs for low-cover SKUs',
+    'home.actions.expiryGuard.title': 'Expiry Guard',
+    'home.actions.expiryGuard.desc': 'Resolve expiries before refills',
+    'home.ready': 'Ready',
   },
 
   ar: {
@@ -125,7 +125,7 @@ const DICT: Record<Lang, Dict> = {
     'common.defaultDialCode': 'رمز الاتصال الافتراضي',
     'common.signIn': 'تسجيل الدخول',
     'common.signOut': 'تسجيل الخروج',
-    'common.ready': 'جاهز',
+    'common.languageTag': 'اللغة',
 
     // nav
     'nav.home': 'الرئيسية',
@@ -139,7 +139,7 @@ const DICT: Record<Lang, Dict> = {
     'nav.settings': 'الإعدادات',
 
     // settings
-    'settings.org': 'المنظّمة',
+    'settings.org': 'المنظمة',
     'settings.connect': 'اتصال واختبار',
     'settings.connecting': 'جارٍ الاتصال…',
 
@@ -169,27 +169,7 @@ const DICT: Record<Lang, Dict> = {
     'suppliers.updated': 'تم حفظ التعديلات.',
     'suppliers.removed': 'تم حذف المورّد.',
 
-    // POS
-    'pos.title': 'أوامر الشراء',
-    'pos.new': 'أمر شراء جديد',
-    'pos.poNumber': 'رقم الأمر',
-    'pos.status': 'الحالة',
-    'pos.promised': 'الموعود',
-    'pos.delivered': 'المُسلَّم',
-    'pos.created': 'أُنشئ',
-    'pos.count': 'عدد الأوامر',
-
-    // Suggestions
-    'suggestions.title': 'الاقتراحات',
-    'suggestions.create': 'إنشاء أمر شراء',
-    'suggestions.created': 'أُنشئ',
-    'suggestions.status': 'الحالة',
-    'suggestions.recQty': 'الكمية المقترَحة',
-    'suggestions.reason': 'السبب',
-    'suggestions.type': 'النوع',
-    'suggestions.act': 'تنفيذ',
-
-    // Audit
+    // audit
     'audit.title': 'سجل التدقيق',
     'audit.meta': 'البيانات',
     'audit.entity': 'الكيان',
@@ -197,21 +177,41 @@ const DICT: Record<Lang, Dict> = {
     'audit.actor': 'الفاعل',
     'audit.time': 'الوقت',
 
-    // Home dashboard
-    'home.openInquiries': 'الاستفسارات المفتوحة',
-    'home.goToInquiries': 'اذهب إلى الاستفسارات',
-    'home.failedWhatsApp': 'محاولات واتساب الفاشلة (آخر 30 يومًا)',
-    'home.seeOutbox': 'اذهب إلى الصندوق',
-    'home.pendingSuggestions': 'الاقتراحات المعلّقة',
-    'home.reviewNow': 'راجع الآن',
+    // pos
+    'pos.title': 'أوامر الشراء',
+    'pos.new': 'أمر شراء جديد',
+    'pos.col.po': 'رقم الأمر',
+    'pos.col.status': 'الحالة',
+    'pos.col.promised': 'الموعود',
+    'pos.col.delivered': 'تم التسليم',
+    'pos.col.created': 'الإنشاء',
+
+    // suggestions
+    'sug.title': 'الاقتراحات',
+    'sug.createPO': 'إنشاء أمر شراء',
+    'sug.col.type': 'النوع',
+    'sug.col.reason': 'السبب',
+    'sug.col.qty': 'الكمية المقترحة',
+    'sug.col.status': 'الحالة',
+    'sug.col.created': 'الإنشاء',
+    'sug.col.actions': '',
+
+    // home
+    'home.stats.openInquiries': 'الاستفسارات المفتوحة',
+    'home.stats.failedSends': 'محاولات واتساب الفاشلة (آخر 30 يوماً)',
+    'home.stats.pendingSuggestions': 'الاقتراحات المعلّقة',
+    'home.cta.inquiries': 'اذهب إلى الاستفسارات',
+    'home.cta.outbox': 'عرض الصندوق',
+    'home.cta.reviewNow': 'مراجعة الآن',
     'home.openSuggestions': 'الاقتراحات المفتوحة',
-    'home.nextActions': 'الخطوات التالية',
-    'home.bulkPrice.title': 'سعر الجملة',
-    'home.bulkPrice.desc': 'اطلب سعر الشرائح عند الحاجة',
-    'home.refillWeeks.title': 'أسابيع التزويد',
-    'home.refillWeeks.desc': 'أنشئ أوامر شراء للأصناف قليلة التغطية',
-    'home.expiryGuard.title': 'حارس الانتهاء',
-    'home.expiryGuard.desc': 'عالج الانتهاء قبل التزويد',
+    'home.nextActions': 'الإجراءات التالية',
+    'home.actions.bulkPrice.title': 'سعر الجملة',
+    'home.actions.bulkPrice.desc': 'اطلب سعر الشرائح عند الحاجة',
+    'home.actions.refillWeeks.title': 'أسابيع التعبئة',
+    'home.actions.refillWeeks.desc': 'أنشئ أوامر شراء للأصناف قليلة التغطية',
+    'home.actions.expiryGuard.title': 'حارس الصلاحية',
+    'home.actions.expiryGuard.desc': 'حلّ الانتهاءات قبل التعبئة',
+    'home.ready': 'جاهز',
   },
 }
 
@@ -237,7 +237,6 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') localStorage.setItem('aoos_lang', l)
   }
 
-  // Keep <html> dir/lang in sync
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = lang
@@ -245,7 +244,16 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
   }, [lang])
 
-  const t = (key: string) => DICT[lang][key] ?? key
+  const t = (key: string) => {
+    const v = DICT[lang][key]
+    if (v === undefined) {
+      // Helpful during development to spot missing keys.
+      if (typeof window !== 'undefined') console.warn('[i18n] Missing key:', key)
+      return key
+    }
+    return v
+  }
+
   const value = useMemo(() => ({ lang, setLang, t }), [lang])
 
   return <I18nCtx.Provider value={value}>{children}</I18nCtx.Provider>
