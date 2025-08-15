@@ -1,36 +1,46 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
-import { Boxes, Bot, FileDown, Inbox, LayoutGrid, MessageSquare, Settings, Users, Send, Table as Tbl, FileText } from 'lucide-react'
+import { useI18n } from '@/lib/i18n'
+import { Home, Boxes, ClipboardList, Users, Upload, MessageSquare, FileText, ListChecks, Settings } from 'lucide-react'
 
-const nav = [
-  { href: '/', label: 'Home', icon: LayoutGrid },
-  { href: '/suggestions', label: 'Suggestions', icon: Bot },
-  { href: '/pos', label: 'POs', icon: Send },
-  { href: '/suppliers', label: 'Suppliers', icon: Users },
-  { href: '/uploads', label: 'Uploads', icon: FileDown },
-  { href: '/outbox', label: 'Outbox', icon: MessageSquare },
-  { href: '/templates', label: 'Templates', icon: FileText },
-  { href: '/audit', label: 'Audit', icon: Tbl },
-  { href: '/settings', label: 'Settings', icon: Settings }
+const items = [
+  { href: '/', icon: Home, key: 'nav.home' },
+  { href: '/suggestions', icon: Boxes, key: 'nav.suggestions' },
+  { href: '/pos', icon: ClipboardList, key: 'nav.pos' },
+  { href: '/suppliers', icon: Users, key: 'nav.suppliers' },
+  { href: '/uploads', icon: Upload, key: 'nav.uploads' },
+  { href: '/outbox', icon: MessageSquare, key: 'nav.outbox' },
+  { href: '/templates', icon: FileText, key: 'nav.templates' },
+  { href: '/audit', icon: ListChecks, key: 'nav.audit' },
+  { href: '/settings', icon: Settings, key: 'nav.settings' },
 ]
 
 export default function Sidebar() {
-  const pathname = usePathname()
+  const path = usePathname()
+  const { t } = useI18n()
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col gap-2 border-r border-slate-200 bg-white p-4">
-      <div className="flex items-center gap-2 px-2 py-1 text-brand-700 font-semibold">
-        <Boxes className="h-5 w-5" /> AOOS
+    <aside className="hidden md:block border-r border-slate-200 bg-white">
+      <div className="sticky top-0 h-screen w-[16rem] p-3">
+        <div className="mb-4 px-2 text-lg font-semibold text-blue-700">AOOS</div>
+        <nav className="flex flex-col gap-1">
+          {items.map(({ href, icon: Icon, key }) => {
+            const active = path === href
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${
+                  active ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{t(key)}</span>
+              </Link>
+            )
+          })}
+        </nav>
       </div>
-      <nav className="mt-3 grid gap-1">
-        {nav.map((i) => (
-          <Link key={i.href} href={i.href} className={cn('flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100', pathname === i.href && 'bg-slate-100 text-slate-900 font-medium')}>
-            <i.icon className="h-4 w-4" /> {i.label}
-          </Link>
-        ))}
-      </nav>
-      <div className="mt-auto text-xs text-slate-400">— Sent via AOOS • aoos.io</div>
     </aside>
   )
 }

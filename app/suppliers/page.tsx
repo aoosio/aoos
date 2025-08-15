@@ -1,4 +1,3 @@
-// app/suppliers/page.tsx
 'use client'
 
 import useSWR from 'swr'
@@ -16,10 +15,9 @@ type Supplier = {
   id: string
   name: string
   phone_e164: string | null
-  preferred_language: string | null
+  preferred_language: 'ar' | 'en' | null
   updated_at: string | null
 }
-
 type Org = { id: string; default_dial_code: string }
 
 async function loadSuppliers(): Promise<Supplier[]> {
@@ -28,15 +26,11 @@ async function loadSuppliers(): Promise<Supplier[]> {
     .select('id,name,phone_e164,preferred_language,updated_at')
     .order('name', { ascending: true })
   if (error) throw error
-  return (data ?? []) as Supplier[]
+  return data as Supplier[]
 }
 
 async function loadOrg(): Promise<Org | null> {
-  const { data, error } = await supabase
-    .from('organizations')
-    .select('id, default_dial_code')
-    .maybeSingle()
-  if (error) return null
+  const { data } = await supabase.from('organizations').select('id,default_dial_code').maybeSingle()
   if (!data) return null
   return { id: data.id as string, default_dial_code: (data as any).default_dial_code ?? '+964' }
 }
@@ -45,11 +39,8 @@ function normalizeToE164(raw: string, dial: string) {
   let p = (raw || '').replace(/[\s-]/g, '')
   if (!p) return ''
   if (p.startsWith('+')) return p
-  if (dial && dial.startsWith('+')) {
-    p = p.replace(/^0+/, '')
-    return `${dial}${p}`
-  }
-  return `+${p}`
+  p = p.replace(/^0+/, '')
+  return `${dial}${p}`
 }
 
 export default function SuppliersPage() {
@@ -59,77 +50,111 @@ export default function SuppliersPage() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
-  useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      const o = await loadOrg()
-      if (mounted) setOrg(o)
-    })()
-    return () => {
-      mounted = false
-    }
-  }, [])
+  // add form
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [lang, setLang] = useState<'ar' | 'en'>('ar')
 
-  async function addSupplier(formData: FormData) {
-    const name = String(formData.get('name') || '').trim()
-    const phoneRaw = String(formData.get('phone') || '').trim()
-    const lang = String(formData.get('lang') || 'ar')
+  // inline edit
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [editLang, setEditLang] = useState<'ar' | 'en'>('ar')
 
-    if (!name) return setMsg(t('suppliers.name') + ' ' + t('common.required' as any) || 'Name is required.')
-    if (!phoneRaw) return setMsg(t('suppliers.phone') + ' ' + t('common.required' as any) || 'Phone is required.')
+  useEffect(() => { loadOrg().then(setOrg) }, [])
 
-    const e164 = normalizeToE164(phoneRaw, org?.default_dial_code || '+964')
-    if (!/^\+[1-9]\d{7,14}$/.test(e164)) {
-      return setMsg('Invalid phone. Use international format like +9647XXXXXXXX.')
-    }
+  async function addSupplier() {
+    if (!name.trim()) return setMsg('Name is required.')
+    if (!phone.trim()) return setMsg('Phone is required.')
 
-    setSaving(true)
-    setMsg(null)
+    const e164 = normalizeToE164(phone, org?.default_dial_code || '+964')
+    if (!/^\+[1-9]\d{7,14}$/.test(e164)) return setMsg('Invalid phone format.')
+
+    setSaving(true); setMsg(null)
     const { error } = await supabase.from('suppliers').insert({
-      name,
+      name: name.trim(),
       phone_e164: e164,
       preferred_language: lang,
     })
     setSaving(false)
     if (error) setMsg(error.message)
     else {
-      setMsg(t('common.added'))
-      ;(document.getElementById('supplier-form') as HTMLFormElement)?.reset()
-      mutate()
+      setMsg(t('suppliers.added'))
+      setName(''); setPhone('')
+      void mutate()
     }
+  }
+
+  function startEdit(s: Supplier) {
+    setEditId(s.id)
+    setEditName(s.name ?? '')
+    setEditPhone(s.phone_e164 ?? '')
+    setEditLang((s.preferred_language ?? 'ar') as 'ar' | 'en')
+  }
+
+  function cancelEdit() {
+    setEditId(null)
+    setEditName(''); setEditPhone('')
+  }
+
+  async function saveEdit(id: string) {
+    const e164 = editPhone.startsWith('+')
+      ? editPhone
+      : normalizeToE164(editPhone, org?.default_dial_code || '+964')
+    if (e164 && !/^\+[1-9]\d{7,14}$/.test(e164)) return setMsg('Invalid phone format.')
+
+    setSaving(true); setMsg(null)
+    const { error } = await supabase
+      .from('suppliers')
+      .update({ name: editName.trim(), phone_e164: e164 || null, preferred_language: editLang })
+      .eq('id', id)
+    setSaving(false)
+    if (error) setMsg(error.message)
+    else { setMsg(t('suppliers.updated')); setEditId(null); void mutate() }
+  }
+
+  async function removeSupplier(id: string) {
+    const ok = confirm('Delete supplier?')
+    if (!ok) return
+    const { error } = await supabase.from('suppliers').delete().eq('id', id)
+    if (error) setMsg(error.message)
+    else { setMsg(t('suppliers.removed')); void mutate() }
   }
 
   return (
     <div className="grid gap-6">
       <Card>
         <h1 className="mb-3 text-lg font-semibold">{t('suppliers.title')}</h1>
-        <form id="supplier-form" action={addSupplier} className="grid gap-3 sm:grid-cols-4">
+
+        {/* Add supplier */}
+        <div className="grid gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2">
-            <Label htmlFor="name">{t('suppliers.name')}</Label>
-            <Input id="name" name="name" placeholder="Supplier name" />
+            <Label htmlFor="s-name">{t('suppliers.name')}</Label>
+            <Input id="s-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Supplier name" />
           </div>
           <div>
-            <Label htmlFor="phone">{t('suppliers.phone')}</Label>
+            <Label htmlFor="s-phone">{t('suppliers.phone')}</Label>
             <Input
-              id="phone"
-              name="phone"
+              id="s-phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               placeholder={(org?.default_dial_code || '+964') + '7XXXXXXXX'}
             />
           </div>
           <div>
-            <Label htmlFor="lang">{t('common.language')}</Label>
-            <Select id="lang" name="lang" defaultValue="ar">
+            <Label htmlFor="s-lang">{t('suppliers.lang')}</Label>
+            <Select id="s-lang" value={lang} onChange={(e) => setLang(e.target.value as 'ar' | 'en')}>
               <option value="ar">AR</option>
               <option value="en">EN</option>
             </Select>
           </div>
           <div className="sm:col-span-4">
-            <Button type="submit" disabled={saving}>
-              {saving ? t('common.saving') : t('suppliers.addSupplier')}
+            <Button onClick={() => { void addSupplier() }} disabled={saving || !name.trim() || !phone.trim()}>
+              {t('suppliers.add')}
             </Button>
             {msg && <span className="ml-3 text-sm text-slate-600">{msg}</span>}
           </div>
-        </form>
+        </div>
       </Card>
 
       <Card>
@@ -138,19 +163,59 @@ export default function SuppliersPage() {
             <TR>
               <TH>{t('suppliers.name')}</TH>
               <TH>{t('suppliers.phone')}</TH>
-              <TH>{t('common.language')}</TH>
+              <TH>{t('suppliers.lang')}</TH>
               <TH>Updated</TH>
+              <TH></TH>
             </TR>
           </THead>
           <TBody>
-            {(data ?? []).map((s) => (
-              <TR key={s.id}>
-                <TD>{s.name}</TD>
-                <TD>{s.phone_e164 ?? '-'}</TD>
-                <TD>{s.preferred_language?.toUpperCase() ?? '-'}</TD>
-                <TD>{s.updated_at ? new Date(s.updated_at).toLocaleString() : '-'}</TD>
-              </TR>
-            ))}
+            {(data ?? []).map((s) => {
+              const editing = editId === s.id
+              return (
+                <TR key={s.id}>
+                  <TD>
+                    {editing
+                      ? <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                      : s.name}
+                  </TD>
+                  <TD>
+                    {editing
+                      ? <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                      : (s.phone_e164 ?? '-')}
+                  </TD>
+                  <TD>
+                    {editing ? (
+                      <Select value={editLang} onChange={(e) => setEditLang(e.target.value as 'ar' | 'en')}>
+                        <option value="ar">AR</option>
+                        <option value="en">EN</option>
+                      </Select>
+                    ) : (s.preferred_language?.toUpperCase() ?? '-')}
+                  </TD>
+                  <TD>{s.updated_at ? new Date(s.updated_at).toLocaleString() : '-'}</TD>
+                  <TD className="w-[12rem]">
+                    {editing ? (
+                      <div className="flex gap-2">
+                        <Button className="h-8 px-3 text-xs" onClick={() => { void saveEdit(s.id) }} disabled={saving}>
+                          {t('common.save')}
+                        </Button>
+                        <Button className="h-8 px-3 text-xs" variant="secondary" onClick={cancelEdit}>
+                          {t('common.cancel')}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button className="h-8 px-3 text-xs" variant="secondary" onClick={() => startEdit(s)}>
+                          {t('common.edit')}
+                        </Button>
+                        <Button className="h-8 px-3 text-xs" variant="secondary" onClick={() => { void removeSupplier(s.id) }}>
+                          {t('common.delete')}
+                        </Button>
+                      </div>
+                    )}
+                  </TD>
+                </TR>
+              )
+            })}
           </TBody>
         </Table>
       </Card>
