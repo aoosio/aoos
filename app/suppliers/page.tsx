@@ -1,3 +1,4 @@
+// app/suppliers/page.tsx
 'use client'
 import useSWR from 'swr'
 import { supabase } from '@/lib/supabase-client'
@@ -9,6 +10,8 @@ import { Select } from '@/components/ui/select'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table'
 import { useEffect, useState } from 'react'
 
+type Org = { id: string; default_dial_code: string }
+
 async function loadSuppliers() {
   const { data, error } = await supabase
     .from('suppliers')
@@ -18,9 +21,14 @@ async function loadSuppliers() {
   return data
 }
 
-async function loadOrg() {
-  const { data } = await supabase.from('organizations').select('id, default_dial_code').limit(1)
-  return data?.[0]
+async function loadOrg(): Promise<Org | null> {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('id, default_dial_code')
+    .maybeSingle()
+  if (error) return null
+  if (!data) return null
+  return { id: data.id as string, default_dial_code: (data as any).default_dial_code ?? '+964' }
 }
 
 function normalizeToE164(raw: string, dial: string) {
@@ -28,7 +36,7 @@ function normalizeToE164(raw: string, dial: string) {
   if (!p) return ''
   if (p.startsWith('+')) return p
   if (dial && dial.startsWith('+')) {
-    p = p.replace(/^0+/, '') // strip leading 0s
+    p = p.replace(/^0+/, '')
     return `${dial}${p}`
   }
   return `+${p}`
@@ -36,12 +44,17 @@ function normalizeToE164(raw: string, dial: string) {
 
 export default function SuppliersPage() {
   const { data, mutate } = useSWR('suppliers', loadSuppliers)
-  const [org, setOrg] = useState<{ id: string; default_dial_code: string } | null>(null)
+  const [org, setOrg] = useState<Org | null>(null)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    loadOrg().then(setOrg)
+    let mounted = true
+    ;(async () => {
+      const o = await loadOrg()
+      if (mounted) setOrg(o)
+    })()
+    return () => { mounted = false }
   }, [])
 
   async function addSupplier(formData: FormData) {
@@ -81,7 +94,11 @@ export default function SuppliersPage() {
           </div>
           <div>
             <Label htmlFor="phone">Phone (WhatsApp)</Label>
-            <Input id="phone" name="phone" placeholder={(org?.default_dial_code || '+964') + '7XXXXXXXX'} />
+            <Input
+              id="phone"
+              name="phone"
+              placeholder={(org?.default_dial_code || '+964') + '7XXXXXXXX'}
+            />
           </div>
           <div>
             <Label htmlFor="lang">Language</Label>
@@ -103,7 +120,7 @@ export default function SuppliersPage() {
             <TR><TH>Name</TH><TH>Phone</TH><TH>Language</TH><TH>Updated</TH></TR>
           </THead>
           <TBody>
-            {(data ?? []).map((s) => (
+            {(data ?? []).map((s: any) => (
               <TR key={s.id}>
                 <TD>{s.name}</TD>
                 <TD>{s.phone_e164 ?? '-'}</TD>
