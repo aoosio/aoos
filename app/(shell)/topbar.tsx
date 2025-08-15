@@ -1,47 +1,57 @@
 'use client'
+
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase-client'
-import { Button } from '@/components/ui/button'
-import { Languages, LogIn, LogOut, User } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
-import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 
 export default function Topbar() {
-  const { lang, setLang } = useI18n()
+  const { lang, setLang, t } = useI18n()
   const [email, setEmail] = useState<string | null>(null)
-  const [checking, setChecking] = useState(true)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    ;(async () => {
+      const { data } = await supabase.auth.getUser()
       setEmail(data.user?.email ?? null)
-      setChecking(false)
-    })
+    })()
   }, [])
 
+  function toggleLang() {
+    const next = lang === 'ar' ? 'en' : 'ar'
+    setLang(next)
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = next
+      document.documentElement.dir = next === 'ar' ? 'rtl' : 'ltr'
+      localStorage.setItem('aoos_lang', next)
+    }
+  }
+
+  async function signOut() {
+    setBusy(true)
+    await supabase.auth.signOut()
+    setBusy(false)
+    location.href = '/login'
+  }
+
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4">
-      <div className="md:hidden font-semibold">AOOS</div>
-      <div className="flex items-center gap-3">
-        <Button variant="secondary" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
-          <Languages className="mr-2 h-4 w-4" /> {lang.toUpperCase()}
+    <header className="flex items-center justify-between px-4 py-3 border-b bg-white/60 backdrop-blur">
+      <Link href="/" className="font-semibold text-blue-700">AOOS</Link>
+
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" onClick={toggleLang} aria-label="Toggle language">
+          {lang.toUpperCase()}☆
         </Button>
 
-        {!checking && email && (
+        {email ? (
           <>
-            <span className="hidden items-center gap-2 text-sm text-slate-700 sm:flex">
-              <User className="h-4 w-4" /> {email}
-            </span>
-            <Button variant="secondary" onClick={() => supabase.auth.signOut()}>
-              <LogOut className="mr-2 h-4 w-4" /> Sign out
-            </Button>
+            <span className="text-sm text-slate-600 hidden sm:inline">{email}</span>
+            <Button onClick={signOut} disabled={busy}>{busy ? t('common.signingOut') : t('common.signOut')}</Button>
           </>
-        )}
-
-        {!checking && !email && (
-          <Link href="/login">
-            <Button variant="secondary">
-              <LogIn className="mr-2 h-4 w-4" /> Sign in
-            </Button>
+        ) : (
+          <Link href="/login" className="rounded-2xl bg-slate-100 px-3 py-1.5 text-sm hover:bg-slate-200">
+            {t('common.signIn')}
           </Link>
         )}
       </div>
