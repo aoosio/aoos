@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 function parseCSV(text: string): string[][] {
-  // simple CSV with quotes support (no multiline)
   const rows: string[][] = []
   let row: string[] = []
   let cell = ''
@@ -18,14 +17,12 @@ function parseCSV(text: string): string[][] {
     if (inQuotes) {
       if (ch === '"') {
         if (text[i + 1] === '"') { cell += '"'; i++ } else { inQuotes = false }
-      } else {
-        cell += ch
-      }
+      } else cell += ch
     } else {
       if (ch === '"') inQuotes = true
       else if (ch === ',') { row.push(cell); cell = '' }
       else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = '' }
-      else if (ch !== '\r') { cell += ch }
+      else if (ch !== '\r') cell += ch
     }
   }
   if (cell.length || row.length) { row.push(cell); rows.push(row) }
@@ -47,7 +44,6 @@ function toISODate(s: string | undefined) {
   if (!s) return null
   const t = s.trim()
   if (!t) return null
-  // Accept YYYY-MM-DD or DD/MM/YYYY
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t
   const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
   if (m) return `${m[3]}-${m[2]}-${m[1]}`
@@ -75,10 +71,9 @@ export default function UploadsPage() {
         sold_qty: Number((r[map['sold_qty']] ?? '0').toString().trim() || '0')
       })).filter(x => x.product)
       if (!data.length) throw new Error('No valid rows found')
-      // Insert in chunks to avoid payload limits
       for (let i = 0; i < data.length; i += 1000) {
         const chunk = data.slice(i, i + 1000)
-        const { error } = await supabase.from('sales_uploads').insert(chunk, { returning: 'minimal' })
+        const { error } = await supabase.from('sales_uploads').insert(chunk) // ← removed { returning: 'minimal' }
         if (error) throw error
       }
       setSalesMsg(`Uploaded ${data.length} sales rows.`)
@@ -107,7 +102,7 @@ export default function UploadsPage() {
       if (!data.length) throw new Error('No valid rows found')
       for (let i = 0; i < data.length; i += 1000) {
         const chunk = data.slice(i, i + 1000)
-        const { error } = await supabase.from('stock_uploads').insert(chunk, { returning: 'minimal' })
+        const { error } = await supabase.from('stock_uploads').insert(chunk) // ← removed { returning: 'minimal' }
         if (error) throw error
       }
       setStockMsg(`Uploaded ${data.length} stock rows.`)
@@ -124,7 +119,7 @@ export default function UploadsPage() {
         <h1 className="mb-3 text-lg font-semibold">Uploads</h1>
 
         {/* Sales upload */}
-        <div className="grid gap-3 sm:grid-cols-3 items-end">
+        <div className="grid items-end gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <Label>Sales CSV</Label>
             <Input type="file" accept=".csv,text/csv" onChange={(e) => setSalesFile(e.target.files?.[0] ?? null)} />
@@ -141,7 +136,7 @@ export default function UploadsPage() {
         <hr className="my-6" />
 
         {/* Stock upload */}
-        <div className="grid gap-3 sm:grid-cols-3 items-end">
+        <div className="grid items-end gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <Label>Stock CSV</Label>
             <Input type="file" accept=".csv,text/csv" onChange={(e) => setStockFile(e.target.files?.[0] ?? null)} />
