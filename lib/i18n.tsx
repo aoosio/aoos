@@ -1,13 +1,17 @@
 // lib/i18n.tsx
 'use client'
+
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 type Lang = 'ar' | 'en'
 type Dict = Record<string, string>
 
+/** Dictionaries (flat keys, e.g. 'common.save') */
 const DICT: Record<Lang, Dict> = {
   en: {
     // common
+    'common.signIn': 'Sign in',
+    'common.signOut': 'Sign out',
     'common.save': 'Save',
     'common.saving': 'Saving…',
     'common.saved': 'Saved.',
@@ -19,6 +23,8 @@ const DICT: Record<Lang, Dict> = {
     'common.ssiDays': 'Safe-sell interval (days)',
     'common.slaTargetDays': 'SLA target (days)',
     'common.defaultDialCode': 'Default dial code',
+    'common.languageTag': 'EN',
+    'common.langTag': 'EN', // alias to be safe
 
     // nav
     'nav.home': 'Home',
@@ -61,9 +67,19 @@ const DICT: Record<Lang, Dict> = {
     'suppliers.added': 'Supplier added.',
     'suppliers.updated': 'Saved changes.',
     'suppliers.removed': 'Supplier removed.',
+
+    // auth (login page)
+    'auth.title': 'Sign in',
+    'auth.email': 'Email',
+    'auth.subtitle': 'Enter your email. We’ll send a magic link',
+    'auth.sendLink': 'Send magic link',
+    'auth.sent': 'Link sent. Check your email.',
   },
+
   ar: {
     // common
+    'common.signIn': 'تسجيل الدخول',
+    'common.signOut': 'تسجيل الخروج',
     'common.save': 'حفظ',
     'common.saving': 'جارٍ الحفظ…',
     'common.saved': 'تم الحفظ.',
@@ -75,6 +91,8 @@ const DICT: Record<Lang, Dict> = {
     'common.ssiDays': 'فترة البيع الآمن (أيام)',
     'common.slaTargetDays': 'هدف مدة التوريد (أيام)',
     'common.defaultDialCode': 'رمز الاتصال الافتراضي',
+    'common.languageTag': 'AR',
+    'common.langTag': 'AR', // alias
 
     // nav
     'nav.home': 'الرئيسية',
@@ -117,32 +135,45 @@ const DICT: Record<Lang, Dict> = {
     'suppliers.added': 'تمت إضافة المورّد.',
     'suppliers.updated': 'تم حفظ التعديلات.',
     'suppliers.removed': 'تم حذف المورّد.',
+
+    // auth
+    'auth.title': 'تسجيل الدخول',
+    'auth.email': 'البريد الإلكتروني',
+    'auth.subtitle': 'أدخل بريدك الإلكتروني لإرسال رابط الدخول',
+    'auth.sendLink': 'إرسال الرابط',
+    'auth.sent': 'تم الإرسال. تفقد بريدك.',
   },
 }
 
-type Ctx = {
+/** Context */
+type I18nCtx = {
   lang: Lang
+  dir: 'ltr' | 'rtl'
   setLang: (l: Lang) => void
   t: (key: string) => string
 }
 
-const I18nCtx = createContext<Ctx | null>(null)
+const I18nContext = createContext<I18nCtx | null>(null)
+
+function initialLang(): Lang {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('aoos_lang') as Lang | null
+    if (saved === 'ar' || saved === 'en') return saved
+    const docLang = document.documentElement.lang
+    if (docLang === 'ar' || docLang === 'en') return docLang
+  }
+  return 'en'
+}
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('aoos_lang') as Lang | null
-      if (saved === 'ar' || saved === 'en') return saved
-    }
-    return 'en'
-  })
+  const [lang, setLangState] = useState<Lang>(initialLang)
 
   const setLang = (l: Lang) => {
     setLangState(l)
     if (typeof window !== 'undefined') localStorage.setItem('aoos_lang', l)
   }
 
-  // Apply <html> attributes whenever language changes
+  // keep <html> in sync
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = lang
@@ -151,13 +182,16 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [lang])
 
   const t = (key: string) => DICT[lang][key] ?? key
-  const value = useMemo(() => ({ lang, setLang, t }), [lang])
+  const value = useMemo<I18nCtx>(
+    () => ({ lang, dir: lang === 'ar' ? 'rtl' : 'ltr', setLang, t }),
+    [lang],
+  )
 
-  return <I18nCtx.Provider value={value}>{children}</I18nCtx.Provider>
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 
-export function useI18n(): Ctx {
-  const ctx = useContext(I18nCtx)
+export function useI18n(): I18nCtx {
+  const ctx = useContext(I18nContext)
   if (!ctx) throw new Error('useI18n must be used within I18nProvider')
   return ctx
 }

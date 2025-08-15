@@ -18,7 +18,7 @@ type OrgRow = {
 }
 
 export default function SettingsPage() {
-  const { t } = useI18n()
+  const { t, lang, setLang } = useI18n()
 
   // Organization form
   const [org, setOrg] = useState<OrgRow | null>(null)
@@ -58,6 +58,11 @@ export default function SettingsPage() {
         default_dial_code: o.default_dial_code ?? '+964',
       })
 
+      // Keep i18n provider in sync with org default
+      if (o.default_language && o.default_language !== lang) {
+        setLang(o.default_language as 'ar' | 'en')
+      }
+
       // Existing channel config (if any)
       const { data: ch } = await supabase
         .from('channel_whatsapp')
@@ -70,15 +75,16 @@ export default function SettingsPage() {
         waba_id: (ch as any)?.waba_id ?? '',
       })
 
-      // Check my role in this org (RLS should already scope me)
+      // Check my role in this org
       const { data: myRoles } = await supabase
         .from('org_members')
         .select('role')
         .eq('org_id', o.id)
         .limit(5)
 
-      setIsOwner(!!myRoles?.find(r => r.role === 'owner'))
+      setIsOwner(!!myRoles?.find((r) => r.role === 'owner'))
     })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function saveOrg(e: React.FormEvent) {
@@ -100,11 +106,9 @@ export default function SettingsPage() {
     setSaving(false)
     setMsg(error ? error.message : t('common.saved'))
 
-    // Apply language immediately on the client
-    if (!error && typeof document !== 'undefined') {
-      document.documentElement.lang = form.default_language
-      document.documentElement.dir = form.default_language === 'ar' ? 'rtl' : 'ltr'
-      localStorage.setItem('aoos_lang', form.default_language)
+    if (!error) {
+      // Update app language immediately
+      setLang(form.default_language as 'ar' | 'en')
     }
   }
 
@@ -144,9 +148,7 @@ export default function SettingsPage() {
             <Label>{t('common.defaultLanguage')}</Label>
             <Select
               value={form.default_language}
-              onChange={(e) =>
-                setForm({ ...form, default_language: e.target.value as 'ar' | 'en' })
-              }
+              onChange={(e) => setForm({ ...form, default_language: e.target.value as 'ar' | 'en' })}
             >
               <option value="ar">AR</option>
               <option value="en">EN</option>
@@ -216,10 +218,7 @@ export default function SettingsPage() {
               />
             </div>
             <div className="sm:col-span-3 mt-2">
-              <Button
-                onClick={connectAndTest}
-                disabled={connecting || !cw.phone_number_id || !cw.waba_id || !token}
-              >
+              <Button onClick={connectAndTest} disabled={connecting || !cw.phone_number_id || !cw.waba_id || !token}>
                 {connecting ? t('settings.connecting') : t('settings.connect')}
               </Button>
               {connectMsg && <span className="ml-3 text-sm text-slate-600">{connectMsg}</span>}
