@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table'
+import { useI18n } from '@/lib/i18n'
 
 type OutboxRow = {
   id: string
@@ -42,6 +43,7 @@ function StatusChip({ status }: { status: string }) {
 }
 
 export default function OutboxPage() {
+  const { t } = useI18n()
   const { data, mutate } = useSWR('outbox', loadOutbox)
 
   // quick send test
@@ -51,7 +53,6 @@ export default function OutboxPage() {
   const [toast, setToast] = useState<string | null>(null)
 
   async function send() {
-    // resolve org id
     const { data: orgs } = await supabase.from('organizations').select('id').limit(1)
     const org_id = orgs?.[0]?.id
     if (!org_id) return setToast('No org found for this user.')
@@ -65,8 +66,8 @@ export default function OutboxPage() {
         org_id,
         to_phone: to,
         body: text,
-        facts: { Sender: 'PO Manager' }
-      })
+        facts: { Sender: 'PO Manager' },
+      }),
     })
     setSending(false)
     const j = await res.json().catch(() => ({}))
@@ -76,21 +77,21 @@ export default function OutboxPage() {
 
   return (
     <Card>
-      <h1 className="mb-3 text-lg font-semibold">WhatsApp Outbox</h1>
+      <h1 className="mb-3 text-lg font-semibold">{t('outbox.title')}</h1>
 
       {/* Quick send test */}
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <div>
-          <Label>To (E.164)</Label>
+          <Label>{t('outbox.to')}</Label>
           <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="+201234567890" />
         </div>
         <div className="sm:col-span-2">
-          <Label>Text</Label>
+          <Label>{t('outbox.text')}</Label>
           <Input value={text} onChange={(e) => setText(e.target.value)} />
         </div>
         <div className="sm:col-span-3">
           <Button onClick={send} disabled={sending || !to || !text.trim()}>
-            {sending ? 'Sending…' : 'Send test'}
+            {sending ? t('outbox.sending') : t('outbox.sendTest')}
           </Button>
           {toast && <span className="ml-3 text-sm text-slate-600">{toast}</span>}
         </div>
@@ -112,7 +113,9 @@ export default function OutboxPage() {
             <TR key={o.id}>
               <TD>{new Date(o.created_at!).toLocaleString()}</TD>
               <TD>{o.to_phone}</TD>
-              <TD><StatusChip status={o.status} /></TD>
+              <TD>
+                <StatusChip status={o.status} />
+              </TD>
               <TD>{o.provider_status ?? '-'}</TD>
               <TD className="max-w-[24rem] truncate" title={o.rendered_text ?? ''}>
                 {o.rendered_text ?? '-'}

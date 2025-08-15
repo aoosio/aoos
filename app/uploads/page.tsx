@@ -1,3 +1,4 @@
+// app/uploads/page.tsx
 'use client'
 
 import { useState } from 'react'
@@ -6,8 +7,14 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useI18n } from '@/lib/i18n'
+
+function stripBOM(text: string) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+}
 
 function parseCSV(text: string): string[][] {
+  text = stripBOM(text)
   const rows: string[][] = []
   let row: string[] = []
   let cell = ''
@@ -51,6 +58,8 @@ function toISODate(s: string | undefined) {
 }
 
 export default function UploadsPage() {
+  const { t } = useI18n()
+
   const [salesFile, setSalesFile] = useState<File | null>(null)
   const [stockFile, setStockFile] = useState<File | null>(null)
   const [salesMsg, setSalesMsg] = useState<string | null>(null)
@@ -73,7 +82,7 @@ export default function UploadsPage() {
       if (!data.length) throw new Error('No valid rows found')
       for (let i = 0; i < data.length; i += 1000) {
         const chunk = data.slice(i, i + 1000)
-        const { error } = await supabase.from('sales_uploads').insert(chunk) // ← removed { returning: 'minimal' }
+        const { error } = await supabase.from('sales_uploads').insert(chunk)
         if (error) throw error
       }
       setSalesMsg(`Uploaded ${data.length} sales rows.`)
@@ -102,7 +111,7 @@ export default function UploadsPage() {
       if (!data.length) throw new Error('No valid rows found')
       for (let i = 0; i < data.length; i += 1000) {
         const chunk = data.slice(i, i + 1000)
-        const { error } = await supabase.from('stock_uploads').insert(chunk) // ← removed { returning: 'minimal' }
+        const { error } = await supabase.from('stock_uploads').insert(chunk)
         if (error) throw error
       }
       setStockMsg(`Uploaded ${data.length} stock rows.`)
@@ -116,19 +125,22 @@ export default function UploadsPage() {
   return (
     <div className="grid gap-6">
       <Card>
-        <h1 className="mb-3 text-lg font-semibold">Uploads</h1>
+        <h1 className="mb-3 text-lg font-semibold">{t('uploads.title')}</h1>
 
         {/* Sales upload */}
         <div className="grid items-end gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
-            <Label>Sales CSV</Label>
+            <Label>{t('uploads.salesCsv')}</Label>
             <Input type="file" accept=".csv,text/csv" onChange={(e) => setSalesFile(e.target.files?.[0] ?? null)} />
             <p className="mt-1 text-xs text-slate-500">
-              Columns: <code>product,sold_qty</code>. <a className="underline" href="/AOOS_Sales_Template.csv">Download template</a>
+              {t('uploads.salesCols')}.{' '}
+              <a className="underline" href="/AOOS_Sales_Template.csv">Download template</a>
             </p>
           </div>
           <div>
-            <Button onClick={uploadSales} disabled={salesBusy || !salesFile}>{salesBusy ? 'Uploading…' : 'Upload sales'}</Button>
+            <Button onClick={uploadSales} disabled={salesBusy || !salesFile}>
+              {salesBusy ? t('common.saving') : t('uploads.uploadSales')}
+            </Button>
           </div>
           {salesMsg && <div className="sm:col-span-3 text-sm text-slate-700">{salesMsg}</div>}
         </div>
@@ -138,14 +150,17 @@ export default function UploadsPage() {
         {/* Stock upload */}
         <div className="grid items-end gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
-            <Label>Stock CSV</Label>
+            <Label>{t('uploads.stockCsv')}</Label>
             <Input type="file" accept=".csv,text/csv" onChange={(e) => setStockFile(e.target.files?.[0] ?? null)} />
             <p className="mt-1 text-xs text-slate-500">
-              Columns: <code>product,qty,expiry_date,distributor,distributor_phone</code>. <a className="underline" href="/AOOS_Stock_Template.csv">Download template</a>
+              {t('uploads.stockCols')}.{' '}
+              <a className="underline" href="/AOOS_Stock_Template.csv">Download template</a>
             </p>
           </div>
           <div>
-            <Button onClick={uploadStock} disabled={stockBusy || !stockFile}>{stockBusy ? 'Uploading…' : 'Upload stock'}</Button>
+            <Button onClick={uploadStock} disabled={stockBusy || !stockFile}>
+              {stockBusy ? t('common.saving') : t('uploads.uploadStock')}
+            </Button>
           </div>
           {stockMsg && <div className="sm:col-span-3 text-sm text-slate-700">{stockMsg}</div>}
         </div>
