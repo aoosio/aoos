@@ -1,0 +1,62 @@
+name: Dump Supabase schema
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Set timestamp
+        id: ts
+        run: echo "ts=$(date -u +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
+
+      - name: Create output folder
+        run: mkdir -p supabase/snapshots
+
+      - name: Dump public schema (includes RLS policies)
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGSSLMODE: require
+        run: |
+          pg_dump -h "${{ secrets.SUPABASE_DB_HOST }}" -p 5432 \
+            -U "${{ secrets.SUPABASE_DB_USER }}" -d "${{ secrets.SUPABASE_DB_NAME }}" \
+            --schema=public --schema-only \
+            --no-owner --no-privileges --no-comments \
+            > "supabase/snapshots/${{ steps.ts.outputs.ts }}_schema.sql"
+          grep -n "CREATE POLICY" "supabase/snapshots/${{ steps.ts.outputs.ts }}_schema.sql" || true
+
+      # (Optional) Un-comment to also dump auth+storage DDL if you ever modified them
+      # - name: Dump auth+storage DDL
+      #   env:
+      #     PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      #     PGSSLMODE: require
+      #   run: |
+      #     pg_dump -h "${{ secrets.SUPABASE_DB_HOST }}" -p 5432 \
+      #       -U "${{ secrets.SUPABASE_DB_USER }}" -d "${{ secrets.SUPABASE_DB_NAME }}" \
+      #       --schema=auth --schema=storage --schema-only \
+      #       --no-owner --no-privileges --no-comments \
+      #       > "supabase/snapshots/${{ steps.ts.outputs.ts }}_auth_storage.sql"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-schema-${{ steps.ts.outputs.ts }}
+          path: supabase/snapshots/*.sql
+
+      - name: Commit the snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/snapshots/*.sql
+          git commit -m "snapshot: schema + RLS ${{ steps.ts.outputs.ts }}" || echo "No changes to commit"
+          git push
