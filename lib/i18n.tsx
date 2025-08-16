@@ -22,7 +22,11 @@ const DICT: Record<Lang, Dict> = {
     'common.signIn': 'Sign in',
     'common.signOut': 'Sign out',
     'common.languageTag': 'Language',
-
+    'nav.people': 'People',
+    'nav.support': 'Support',
+    'nav.admin': 'Admin',
+    'nav.adminDashboard': 'Dashboard',
+    'nav.adminMessages': 'Messages',
     // nav
     'nav.home': 'Home',
     'nav.suggestions': 'Suggestions',
@@ -126,7 +130,11 @@ const DICT: Record<Lang, Dict> = {
     'common.signIn': 'تسجيل الدخول',
     'common.signOut': 'تسجيل الخروج',
     'common.languageTag': 'اللغة',
-
+    'nav.people': 'الأشخاص',
+    'nav.support': 'الدعم',
+    'nav.admin': 'لوحة التحكم',
+    'nav.adminDashboard': 'الإحصائيات',
+    'nav.adminMessages': 'الرسائل',
     // nav
     'nav.home': 'الرئيسية',
     'nav.suggestions': 'الاقتراحات',
