@@ -60,7 +60,7 @@ const DICT: Record<Lang, Dict> = {
     'nav.settings': 'Settings',
     'nav.team': 'Team',
 
-    // Team (EN)
+    // Team
     'team.title': 'Team',
     'team.inviteEmail': 'Email to invite',
     'team.inviteHint': 'We will email a magic link and add them as a PO Manager.',
@@ -192,7 +192,7 @@ const DICT: Record<Lang, Dict> = {
     'nav.settings': 'الإعدادات',
     'nav.team': 'الفريق',
 
-    // Team (AR)
+    // Team
     'team.title': 'الفريق',
     'team.inviteEmail': 'بريد المدير للدعوة',
     'team.inviteHint': 'سنرسل رابط دخول ونضيفه كمسؤول مشتريات.',
