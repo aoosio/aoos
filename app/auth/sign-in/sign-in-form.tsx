@@ -1,98 +1,64 @@
 'use client'
-
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase-client'
 
 export default function SignInForm({ redirect }: { redirect: string }) {
-  // default to MAGIC LINK (safer by default). You can change to 'password' if you prefer.
   const [mode, setMode] = useState<'magic' | 'password'>('magic')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [sent, setSent] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
   const router = useRouter()
-
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : '')
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setErr(null)
-
-    if (mode === 'password') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) return setErr(error.message)
-      router.replace(redirect)
-      return
+    setBusy(true); setMsg(null)
+    try {
+      if (mode === 'password') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        router.replace(redirect)
+        return
+      }
+      // Magic link sign-in/signup → force onboarding after callback
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: `${baseUrl}/auth/callback?redirect=/onboarding` },
+      })
+      if (error) throw error
+      setMsg('Check your email for the sign‑in link.')
+    } catch (err: any) {
+      setMsg(err.message || 'Something went wrong')
+    } finally {
+      setBusy(false)
     }
-
-    // MAGIC LINK
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${baseUrl}/auth/callback?redirect=${encodeURIComponent(
-          redirect
-        )}`,
-      },
-    })
-    if (error) return setErr(error.message)
-    setSent(true)
   }
 
   return (
-    <div className="mx-auto mt-16 max-w-sm px-6">
-      <h2 className="mb-4 text-xl font-semibold">Sign in</h2>
+    <main className="mx-auto max-w-sm px-6 py-16">
+      <h1 className="mb-4 text-xl font-semibold">Sign in</h1>
 
       <div className="mb-3 flex gap-2 text-sm">
-        <button
-          type="button"
-          className={`underline-offset-4 ${mode === 'magic' ? 'underline' : ''}`}
-          onClick={() => setMode('magic')}
-        >
-          Magic link
-        </button>
-        <button
-          type="button"
-          className={`underline-offset-4 ${mode === 'password' ? 'underline' : ''}`}
-          onClick={() => setMode('password')}
-        >
-          Password
-        </button>
+        <button type="button" onClick={() => setMode('magic')}
+          className={`underline-offset-4 ${mode==='magic' ? 'underline' : ''}`}>Magic link</button>
+        <button type="button" onClick={() => setMode('password')}
+          className={`underline-offset-4 ${mode==='password' ? 'underline' : ''}`}>Password</button>
       </div>
 
-      {sent ? (
-        <p className="text-sm text-slate-600">Check your email for the sign‑in link.</p>
-      ) : (
-        <form onSubmit={onSubmit} className="space-y-3">
-          <input
-            className="w-full rounded border px-3 py-2"
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
-          {mode === 'password' && (
-            <input
-              className="w-full rounded border px-3 py-2"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          )}
-
-          {err && <p className="text-sm text-red-600">{err}</p>}
-
-          <button className="rounded bg-black px-3 py-2 text-white" type="submit">
-            Continue
-          </button>
-        </form>
-      )}
-    </div>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <input className="w-full rounded border px-3 py-2" type="email" placeholder="Email"
+               value={email} onChange={(e)=>setEmail(e.target.value)} required />
+        {mode === 'password' && (
+          <input className="w-full rounded border px-3 py-2" type="password" placeholder="Password"
+                 value={password} onChange={(e)=>setPassword(e.target.value)} required />
+        )}
+        {msg && <p className="text-sm text-neutral-700">{msg}</p>}
+        <button disabled={busy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">
+          {busy ? 'Please wait…' : 'Continue'}
+        </button>
+      </form>
+    </main>
   )
 }
