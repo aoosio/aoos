@@ -13,7 +13,6 @@ const LANGS: Record<Locale, { label: string; dir: 'ltr' | 'rtl' }> = {
 
 // -----------------------------
 // Dictionary (EN / AR)
-// Keep keys 2-level: <namespace>.<key>
 // -----------------------------
 type Leaf = { en: string; ar: string }
 type Namespace = Record<string, Leaf>
@@ -172,7 +171,7 @@ export const DICT: Dict = {
     testConnection: { en: 'Test connection', ar: 'اختبار الاتصال' },
   },
 
-  // NEW: Team namespace (fixes literal key "team.sendInvite")
+  // Team namespace
   team: {
     heading: { en: 'Team', ar: 'الفريق' },
     emailToInvite: { en: 'Email to invite', ar: 'البريد الإلكتروني للدعوة' },
@@ -196,11 +195,15 @@ export const DICT: Dict = {
 // I18n runtime
 // -----------------------------
 type I18nCtx = {
+  // Canonical API
   locale: Locale
   setLocale: (l: Locale) => void
   toggleLocale: () => void
   t: (key: `${keyof Dict}.${string}` | string, params?: Record<string, string | number>) => string
   dir: 'ltr' | 'rtl'
+  // Back-compat aliases (for existing components)
+  lang: Locale
+  setLang: (l: Locale) => void
 }
 const I18nContext = React.createContext<I18nCtx | null>(null)
 
@@ -255,20 +258,27 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
         const raw = (leaf as any)[locale] ?? leaf.en
         return interpolate(raw, params)
       }
-      // fallback: try common key
-      const commonLeaf = DICT.common[key as keyof typeof DICT.common]
+      const commonLeaf = (DICT.common as any)[key]
       if (commonLeaf) {
         const raw = (commonLeaf as any)[locale] ?? commonLeaf.en
         return interpolate(raw, params)
       }
-      // last resort: return key
       return key
     },
     [locale]
   )
 
   const value = React.useMemo<I18nCtx>(
-    () => ({ locale, setLocale, toggleLocale, t, dir: LANGS[locale].dir }),
+    () => ({
+      locale,
+      setLocale,
+      toggleLocale,
+      t,
+      dir: LANGS[locale].dir,
+      // aliases
+      lang: locale,
+      setLang: setLocale,
+    }),
     [locale, setLocale, toggleLocale, t]
   )
 
