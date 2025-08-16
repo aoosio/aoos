@@ -1,8 +1,27 @@
+// lib/i18n.tsx
 'use client'
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 type Lang = 'ar' | 'en'
 type Dict = Record<string, string>
+
+// Back-compat aliases (remove once pages use pos.col.* and sug.*)
+const ALIASES: Record<string, string> = {
+  // POS
+  'pos.poNumber': 'pos.col.po',
+  'pos.status': 'pos.col.status',
+  'pos.promised': 'pos.col.promised',
+  'pos.delivered': 'pos.col.delivered',
+  'pos.created': 'pos.col.created',
+  // Suggestions
+  'suggestions.title': 'sug.title',
+  'suggestions.create': 'sug.createPO',
+  'suggestions.type': 'sug.col.type',
+  'suggestions.reason': 'sug.col.reason',
+  'suggestions.recQty': 'sug.col.qty',
+  'suggestions.status': 'sug.col.status',
+  'suggestions.created': 'sug.col.created',
+}
 
 const DICT: Record<Lang, Dict> = {
   en: {
@@ -118,6 +137,7 @@ const DICT: Record<Lang, Dict> = {
     'sug.col.status': 'Status',
     'sug.col.created': 'Created',
     'sug.col.actions': '',
+
     // home
     'home.stats.openInquiries': 'Open inquiries',
     'home.stats.failedSends': 'Failed WhatsApp sends (last 30d)',
@@ -299,9 +319,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [lang])
 
   const t = (key: string) => {
-    const v = DICT[lang][key] ?? DICT.en[key]
+    const k = ALIASES[key] ?? key
+    const v = DICT[lang][k] ?? DICT.en[k]
     if (v === undefined) {
-      if (typeof window !== 'undefined') console.warn('[i18n] Missing key:', key)
+      if (typeof window !== 'undefined') console.warn('[i18n] Missing key:', key, '(resolved:', k, ')')
       return key
     }
     return v
