@@ -1,340 +1,284 @@
 // lib/i18n.tsx
 'use client'
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
-type Lang = 'ar' | 'en'
-type Dict = Record<string, string>
+import * as React from 'react'
 
-// Back-compat aliases (remove once pages use pos.col.* and sug.*)
-const ALIASES: Record<string, string> = {
-  // POS
-  'pos.poNumber': 'pos.col.po',
-  'pos.status': 'pos.col.status',
-  'pos.promised': 'pos.col.promised',
-  'pos.delivered': 'pos.col.delivered',
-  'pos.created': 'pos.col.created',
-  // Suggestions
-  'suggestions.title': 'sug.title',
-  'suggestions.create': 'sug.createPO',
-  'suggestions.type': 'sug.col.type',
-  'suggestions.reason': 'sug.col.reason',
-  'suggestions.recQty': 'sug.col.qty',
-  'suggestions.status': 'sug.col.status',
-  'suggestions.created': 'sug.col.created',
+type Locale = 'en' | 'ar'
+const STORAGE_KEY = 'aoos.lang'
+
+const LANGS: Record<Locale, { label: string; dir: 'ltr' | 'rtl' }> = {
+  en: { label: 'English', dir: 'ltr' },
+  ar: { label: 'العربية', dir: 'rtl' },
 }
 
-const DICT: Record<Lang, Dict> = {
-  en: {
-    // common
-    'common.save': 'Save',
-    'common.saving': 'Saving…',
-    'common.saved': 'Saved.',
-    'common.loading': 'Loading…',
-    'common.cancel': 'Cancel',
-    'common.edit': 'Edit',
-    'common.delete': 'Delete',
-    'common.defaultLanguage': 'Default language',
-    'common.ssiDays': 'Safe-sell interval (days)',
-    'common.slaTargetDays': 'SLA target (days)',
-    'common.defaultDialCode': 'Default dial code',
-    'common.signIn': 'Sign in',
-    'common.signOut': 'Sign out',
-    'common.languageTag': 'Language',
+// -----------------------------
+// Dictionary (EN / AR)
+// Keep keys 2-level: <namespace>.<key>
+// -----------------------------
+type Leaf = { en: string; ar: string }
+type Namespace = Record<string, Leaf>
+type Dict = Record<
+  | 'common'
+  | 'nav'
+  | 'home'
+  | 'sug'
+  | 'pos'
+  | 'suppliers'
+  | 'uploads'
+  | 'outbox'
+  | 'templates'
+  | 'audit'
+  | 'settings'
+  | 'team',
+  Namespace
+>
 
-    // nav (global/admin)
-    'nav.people': 'People',
-    'nav.support': 'Support',
-    'nav.admin': 'Admin',
-    'nav.adminDashboard': 'Dashboard',
-    'nav.adminMessages': 'Messages',
-
-    // nav (app)
-    'nav.home': 'Home',
-    'nav.suggestions': 'Suggestions',
-    'nav.pos': 'Purchase Orders',
-    'nav.suppliers': 'Suppliers',
-    'nav.uploads': 'Uploads',
-    'nav.outbox': 'Outbox',
-    'nav.templates': 'Templates',
-    'nav.audit': 'Audit',
-    'nav.settings': 'Settings',
-    'nav.team': 'Team',
-
-    // Team
-    'team.title': 'Team',
-    'team.inviteEmail': 'Email to invite',
-    'team.inviteHint': 'We will email a magic link and add them as a PO Manager.',
-    'team.inviteBtn': 'Invite manager',
-    'team.sending': 'Sending…',
-    'team.sent': 'Invitation sent.',
-    'team.ownerOnly': 'Only owners can invite and manage members.',
-    'team.members': 'Members',
-    'team.col.role': 'Role',
-    'team.col.email': 'Email',
-    'team.col.status': 'Status',
-    'team.col.joined': 'Joined',
-    'team.active': 'Active',
-    'team.inactive': 'Inactive',
-    'team.ownerBadge': 'Owner',
-    'team.activate': 'Activate',
-    'team.deactivate': 'Deactivate',
-    'team.enterEmail': 'Enter an email.',
-
-    // settings
-    'settings.org': 'Organization',
-    'settings.connect': 'Connect & Test',
-    'settings.connecting': 'Connecting…',
-
-    // uploads
-    'uploads.title': 'Uploads',
-    'uploads.salesCsv': 'Sales CSV',
-    'uploads.stockCsv': 'Stock CSV',
-    'uploads.salesCols': 'Columns: product,sold_qty',
-    'uploads.stockCols': 'Columns: product,qty,expiry_date,distributor,distributor_phone',
-    'uploads.uploadSales': 'Upload sales',
-    'uploads.uploadStock': 'Upload stock',
-
-    // outbox
-    'outbox.title': 'WhatsApp Outbox',
-    'outbox.to': 'To (E.164)',
-    'outbox.text': 'Text',
-    'outbox.sendTest': 'Send test',
-    'outbox.sending': 'Sending…',
-
-    // suppliers
-    'suppliers.title': 'Suppliers',
-    'suppliers.name': 'Name',
-    'suppliers.phone': 'Phone (WhatsApp)',
-    'suppliers.lang': 'Language',
-    'suppliers.add': 'Add supplier',
-    'suppliers.added': 'Supplier added.',
-    'suppliers.updated': 'Saved changes.',
-    'suppliers.removed': 'Supplier removed.',
-
-    // audit
-    'audit.title': 'Audit Log',
-    'audit.meta': 'Meta',
-    'audit.entity': 'Entity',
-    'audit.action': 'Action',
-    'audit.actor': 'Actor',
-    'audit.time': 'Time',
-
-    // pos
-    'pos.title': 'Purchase Orders',
-    'pos.new': 'New PO',
-    'pos.col.po': 'PO #',
-    'pos.col.status': 'Status',
-    'pos.col.promised': 'Promised',
-    'pos.col.delivered': 'Delivered',
-    'pos.col.created': 'Created',
-
-    // suggestions
-    'sug.title': 'Suggestions',
-    'sug.createPO': 'Create PO',
-    'sug.col.type': 'Type',
-    'sug.col.reason': 'Reason',
-    'sug.col.qty': 'Rec. Qty',
-    'sug.col.status': 'Status',
-    'sug.col.created': 'Created',
-    'sug.col.actions': '',
-
-    // home
-    'home.stats.openInquiries': 'Open inquiries',
-    'home.stats.failedSends': 'Failed WhatsApp sends (last 30d)',
-    'home.stats.pendingSuggestions': 'Pending suggestions',
-    'home.cta.inquiries': 'Go to inquiries',
-    'home.cta.outbox': 'See outbox',
-    'home.cta.reviewNow': 'Review now',
-    'home.openSuggestions': 'Open suggestions',
-    'home.nextActions': 'Next actions',
-    'home.actions.bulkPrice.title': 'Bulk Price',
-    'home.actions.bulkPrice.desc': 'Ask for tier price where it makes sense',
-    'home.actions.refillWeeks.title': 'Refill Weeks',
-    'home.actions.refillWeeks.desc': 'Create POs for low-cover SKUs',
-    'home.actions.expiryGuard.title': 'Expiry Guard',
-    'home.actions.expiryGuard.desc': 'Resolve expiries before refills',
-    'home.ready': 'Ready',
+export const DICT: Dict = {
+  common: {
+    appName: { en: 'AOOS', ar: 'AOOS' },
+    languageTag: { en: 'Language', ar: 'اللغة' },
+    english: { en: 'English', ar: 'الإنجليزية' },
+    arabic: { en: 'Arabic', ar: 'العربية' },
+    signIn: { en: 'Sign in', ar: 'تسجيل الدخول' },
+    signOut: { en: 'Sign out', ar: 'تسجيل الخروج' },
+    save: { en: 'Save', ar: 'حفظ' },
+    cancel: { en: 'Cancel', ar: 'إلغاء' },
+    edit: { en: 'Edit', ar: 'تعديل' },
+    delete: { en: 'Delete', ar: 'حذف' },
+    update: { en: 'Update', ar: 'تحديث' },
+    created: { en: 'Created', ar: 'تم الإنشاء' },
+    updated: { en: 'Updated', ar: 'تم التحديث' },
+    status: { en: 'Status', ar: 'الحالة' },
+    actions: { en: 'Actions', ar: 'الإجراءات' },
+    loading: { en: 'Loading…', ar: 'جارٍ التحميل…' },
+    error: { en: 'Error', ar: 'خطأ' },
+    success: { en: 'Success', ar: 'تم بنجاح' },
+    search: { en: 'Search', ar: 'بحث' },
+    next: { en: 'Next', ar: 'التالي' },
+    back: { en: 'Back', ar: 'رجوع' },
+    owner: { en: 'Owner', ar: 'المالك' },
+    admin: { en: 'Admin', ar: 'مدير' },
+    po_manager: { en: 'PO Manager', ar: 'مسؤول الطلبات' },
   },
 
-  ar: {
-    // common
-    'common.save': 'حفظ',
-    'common.saving': 'جارٍ الحفظ…',
-    'common.saved': 'تم الحفظ.',
-    'common.loading': 'جارٍ التحميل…',
-    'common.cancel': 'إلغاء',
-    'common.edit': 'تعديل',
-    'common.delete': 'حذف',
-    'common.defaultLanguage': 'اللغة الافتراضية',
-    'common.ssiDays': 'فترة البيع الآمن (أيام)',
-    'common.slaTargetDays': 'هدف مدة التوريد (أيام)',
-    'common.defaultDialCode': 'رمز الاتصال الافتراضي',
-    'common.signIn': 'تسجيل الدخول',
-    'common.signOut': 'تسجيل الخروج',
-    'common.languageTag': 'اللغة',
+  nav: {
+    home: { en: 'Home', ar: 'الرئيسية' },
+    suggestions: { en: 'Suggestions', ar: 'الاقتراحات' },
+    pos: { en: 'Purchase Orders', ar: 'أوامر الشراء' },
+    suppliers: { en: 'Suppliers', ar: 'الموردون' },
+    uploads: { en: 'Uploads', ar: 'الملفات' },
+    outbox: { en: 'Outbox', ar: 'الصادر' },
+    templates: { en: 'Templates', ar: 'القوالب' },
+    audit: { en: 'Audit', ar: 'السجل' },
+    settings: { en: 'Settings', ar: 'الإعدادات' },
+    team: { en: 'Team', ar: 'الفريق' },
+  },
 
-    // nav (global/admin)
-    'nav.people': 'الأشخاص',
-    'nav.support': 'الدعم',
-    'nav.admin': 'لوحة التحكم',
-    'nav.adminDashboard': 'الإحصائيات',
-    'nav.adminMessages': 'الرسائل',
+  home: {
+    title: { en: 'From insight to action', ar: 'من البيانات نتخذ القرارات' },
+    subtitle: {
+      en: 'Send supplier-ready POs from sales & stock data.',
+      ar: 'أرسل أوامر شراء جاهزة للموردين من بيانات المبيعات والمخزون.',
+    },
+    statsSuppliers: { en: 'Suppliers', ar: 'الموردون' },
+    statsMessages: { en: 'WhatsApp messages', ar: 'رسائل واتساب' },
+    statsPOs: { en: 'POs created', ar: 'أوامر شراء' },
+    ready: { en: 'You are ready to start.', ar: 'أنت جاهز للبدء.' },
+    ctaSuppliers: { en: 'Add suppliers', ar: 'أضف الموردين' },
+    ctaUploads: { en: 'Upload CSVs', ar: 'ارفع ملفات CSV' },
+  },
 
-    // nav (app)
-    'nav.home': 'الرئيسية',
-    'nav.suggestions': 'الاقتراحات',
-    'nav.pos': 'أوامر الشراء',
-    'nav.suppliers': 'المورّدون',
-    'nav.uploads': 'الرفع',
-    'nav.outbox': 'صندوق واتساب',
-    'nav.templates': 'القوالب',
-    'nav.audit': 'السجل',
-    'nav.settings': 'الإعدادات',
-    'nav.team': 'الفريق',
+  sug: {
+    title: { en: 'Suggestions', ar: 'الاقتراحات' },
+    empty: { en: 'No suggestions yet.', ar: 'لا توجد اقتراحات بعد.' },
+    accept: { en: 'Accept', ar: 'قبول' },
+    dismiss: { en: 'Dismiss', ar: 'تجاهل' },
+    sent: { en: 'Sent', ar: 'تم الإرسال' },
+  },
 
-    // Team
-    'team.title': 'الفريق',
-    'team.inviteEmail': 'بريد المدير للدعوة',
-    'team.inviteHint': 'سنرسل رابط دخول ونضيفه كمسؤول مشتريات.',
-    'team.inviteBtn': 'دعوة مدير مشتريات',
-    'team.sending': 'جارٍ الإرسال…',
-    'team.sent': 'تم إرسال الدعوة.',
-    'team.ownerOnly': 'فقط المالك يمكنه دعوة وإدارة الأعضاء.',
-    'team.members': 'الأعضاء',
-    'team.col.role': 'الدور',
-    'team.col.email': 'البريد',
-    'team.col.status': 'الحالة',
-    'team.col.joined': 'تاريخ الانضمام',
-    'team.active': 'نشط',
-    'team.inactive': 'غير نشط',
-    'team.ownerBadge': 'مالك',
-    'team.activate': 'تفعيل',
-    'team.deactivate': 'إلغاء التفعيل',
-    'team.enterEmail': 'أدخل بريداً إلكترونياً.',
+  pos: {
+    title: { en: 'Purchase Orders', ar: 'أوامر الشراء' },
+    approve: { en: 'Approve', ar: 'اعتماد' },
+    dispatch: { en: 'Dispatch', ar: 'إرسال' },
+    empty: { en: 'No purchase orders yet.', ar: 'لا توجد أوامر شراء بعد.' },
+  },
 
-    // settings
-    'settings.org': 'المنظمة',
-    'settings.connect': 'اتصال واختبار',
-    'settings.connecting': 'جارٍ الاتصال…',
+  suppliers: {
+    title: { en: 'Suppliers', ar: 'الموردون' },
+    name: { en: 'Name', ar: 'الاسم' },
+    phone: { en: 'Phone (E.164)', ar: 'الهاتف (E.164)' },
+    preferred_language: { en: 'Language', ar: 'اللغة' },
+    add: { en: 'Add supplier', ar: 'إضافة مورد' },
+    edit: { en: 'Edit supplier', ar: 'تعديل مورد' },
+    saveSupplier: { en: 'Save supplier', ar: 'حفظ المورد' },
+    deleteConfirm: { en: 'Delete supplier?', ar: 'حذف المورد؟' },
+    updatedAt: { en: 'Updated', ar: 'آخر تحديث' },
+  },
 
-    // uploads
-    'uploads.title': 'الرفع',
-    'uploads.salesCsv': 'ملف المبيعات CSV',
-    'uploads.stockCsv': 'ملف المخزون CSV',
-    'uploads.salesCols': 'الأعمدة: product,sold_qty',
-    'uploads.stockCols': 'الأعمدة: product,qty,expiry_date,distributor,distributor_phone',
-    'uploads.uploadSales': 'رفع المبيعات',
-    'uploads.uploadStock': 'رفع المخزون',
+  uploads: {
+    title: { en: 'Uploads', ar: 'الملفات' },
+    salesUpload: { en: 'Upload Sales CSV', ar: 'رفع CSV المبيعات' },
+    stockUpload: { en: 'Upload Stock CSV', ar: 'رفع CSV المخزون' },
+    templateSales: { en: 'Download Sales Template', ar: 'تحميل قالب المبيعات' },
+    templateStock: { en: 'Download Stock Template', ar: 'تحميل قالب المخزون' },
+    processed: { en: 'Processed', ar: 'مُعالج' },
+    failed: { en: 'Failed', ar: 'فشل' },
+    inProgress: { en: 'In progress', ar: 'قيد المعالجة' },
+  },
 
-    // outbox
-    'outbox.title': 'صندوق واتساب',
-    'outbox.to': 'إلى (E.164)',
-    'outbox.text': 'النص',
-    'outbox.sendTest': 'إرسال تجريبي',
-    'outbox.sending': 'جارٍ الإرسال…',
+  outbox: {
+    title: { en: 'Outbox', ar: 'الصادر' },
+    toPhone: { en: 'To (phone)', ar: 'إلى (الهاتف)' },
+    message: { en: 'Message', ar: 'الرسالة' },
+    send: { en: 'Send test', ar: 'إرسال تجربة' },
+    status: { en: 'Status', ar: 'الحالة' },
+    providerStatus: { en: 'Provider status', ar: 'حالة المزوّد' },
+    createdAt: { en: 'Created', ar: 'أُنشئ' },
+  },
 
-    // suppliers
-    'suppliers.title': 'المورّدون',
-    'suppliers.name': 'الاسم',
-    'suppliers.phone': 'الهاتف (واتساب)',
-    'suppliers.lang': 'اللغة',
-    'suppliers.add': 'إضافة مورّد',
-    'suppliers.added': 'تمت إضافة المورّد.',
-    'suppliers.updated': 'تم حفظ التعديلات.',
-    'suppliers.removed': 'تم حذف المورّد.',
+  templates: {
+    title: { en: 'Message Templates', ar: 'قوالب الرسائل' },
+    ownerOnly: {
+      en: 'Only Platform Owners can edit templates.',
+      ar: 'فقط مالكو المنصّة يمكنهم تعديل القوالب.',
+    },
+    templateName: { en: 'Template name', ar: 'اسم القالب' },
+    editBody: { en: 'Body (owner editable)', ar: 'المتن (قابل للتعديل من المالك)' },
+    systemFacts: { en: 'System Facts (immutable)', ar: 'حقائق النظام (ثابتة)' },
+    saveTemplate: { en: 'Save template', ar: 'حفظ القالب' },
+  },
 
-    // audit
-    'audit.title': 'سجل التدقيق',
-    'audit.meta': 'البيانات',
-    'audit.entity': 'الكيان',
-    'audit.action': 'الإجراء',
-    'audit.actor': 'الفاعل',
-    'audit.time': 'الوقت',
+  audit: {
+    title: { en: 'Audit Log', ar: 'سجل التدقيق' },
+    time: { en: 'Time', ar: 'الوقت' },
+    action: { en: 'Action', ar: 'الإجراء' },
+    actor: { en: 'Actor', ar: 'الفاعل' },
+    entity: { en: 'Entity', ar: 'الكيان' },
+    meta: { en: 'Details', ar: 'التفاصيل' },
+    empty: { en: 'No audit entries yet.', ar: 'لا توجد سجلات بعد.' },
+  },
 
-    // pos
-    'pos.title': 'أوامر الشراء',
-    'pos.new': 'أمر شراء جديد',
-    'pos.col.po': 'رقم الأمر',
-    'pos.col.status': 'الحالة',
-    'pos.col.promised': 'الموعود',
-    'pos.col.delivered': 'تم التسليم',
-    'pos.col.created': 'الإنشاء',
+  settings: {
+    title: { en: 'Settings', ar: 'الإعدادات' },
+    org: { en: 'Organization', ar: 'المؤسسة' },
+    ssi_days: { en: 'Safety stock (days)', ar: 'مخزون الأمان (أيام)' },
+    sla_target_days: { en: 'SLA target (days)', ar: 'هدف SLA (أيام)' },
+    default_dial_code: { en: 'Default dial code', ar: 'مقدمة الاتصال الافتراضية' },
+    saveSettings: { en: 'Save settings', ar: 'حفظ الإعدادات' },
+    whatsappConnect: { en: 'Connect WhatsApp', ar: 'ربط واتساب' },
+    phoneNumberId: { en: 'Phone Number ID', ar: 'معرّف رقم الهاتف' },
+    wabaId: { en: 'WABA ID', ar: 'معرّف WABA' },
+    accessToken: { en: 'Access Token', ar: 'رمز الوصول' },
+    testConnection: { en: 'Test connection', ar: 'اختبار الاتصال' },
+  },
 
-    // suggestions
-    'sug.title': 'الاقتراحات',
-    'sug.createPO': 'إنشاء أمر شراء',
-    'sug.col.type': 'النوع',
-    'sug.col.reason': 'السبب',
-    'sug.col.qty': 'الكمية المقترحة',
-    'sug.col.status': 'الحالة',
-    'sug.col.created': 'الإنشاء',
-    'sug.col.actions': '',
-
-    // home
-    'home.stats.openInquiries': 'الاستفسارات المفتوحة',
-    'home.stats.failedSends': 'محاولات واتساب الفاشلة (آخر 30 يوماً)',
-    'home.stats.pendingSuggestions': 'الاقتراحات المعلّقة',
-    'home.cta.inquiries': 'اذهب إلى الاستفسارات',
-    'home.cta.outbox': 'عرض الصندوق',
-    'home.cta.reviewNow': 'مراجعة الآن',
-    'home.openSuggestions': 'الاقتراحات المفتوحة',
-    'home.nextActions': 'الإجراءات التالية',
-    'home.actions.bulkPrice.title': 'سعر الجملة',
-    'home.actions.bulkPrice.desc': 'اطلب سعر الشرائح عند الحاجة',
-    'home.actions.refillWeeks.title': 'أسابيع التعبئة',
-    'home.actions.refillWeeks.desc': 'أنشئ أوامر شراء للأصناف قليلة التغطية',
-    'home.actions.expiryGuard.title': 'حارس الصلاحية',
-    'home.actions.expiryGuard.desc': 'حلّ الانتهاءات قبل التعبئة',
-    'home.ready': 'جاهز',
+  // NEW: Team namespace (fixes literal key "team.sendInvite")
+  team: {
+    heading: { en: 'Team', ar: 'الفريق' },
+    emailToInvite: { en: 'Email to invite', ar: 'البريد الإلكتروني للدعوة' },
+    sendInvite: { en: 'Send invite', ar: 'إرسال الدعوة' },
+    pendingInvites: { en: 'Pending invites', ar: 'الدعوات المعلّقة' },
+    members: { en: 'Members', ar: 'الأعضاء' },
+    onlyOwner: {
+      en: 'Only the market owner can send invites.',
+      ar: 'فقط مالك السوق يمكنه إرسال الدعوات.',
+    },
+    noInvites: { en: 'No invites.', ar: 'لا توجد دعوات.' },
+    user: { en: 'User', ar: 'المستخدم' },
+    role: { en: 'Role', ar: 'الدور' },
+    since: { en: 'Since', ar: 'منذ' },
+    status: { en: 'Status', ar: 'الحالة' },
+    created: { en: 'Created', ar: 'تم الإنشاء' },
   },
 }
 
-type Ctx = {
-  lang: Lang
-  setLang: (l: Lang) => void
-  t: (key: string) => string
+// -----------------------------
+// I18n runtime
+// -----------------------------
+type I18nCtx = {
+  locale: Locale
+  setLocale: (l: Locale) => void
+  toggleLocale: () => void
+  t: (key: `${keyof Dict}.${string}` | string, params?: Record<string, string | number>) => string
+  dir: 'ltr' | 'rtl'
+}
+const I18nContext = React.createContext<I18nCtx | null>(null)
+
+function resolveLeaf(key: string): Leaf | null {
+  const [ns, k] = key.split('.', 2)
+  if (!ns || !k) return null
+  const space = (DICT as any)[ns] as Namespace | undefined
+  if (!space) return null
+  const leaf = space[k] as Leaf | undefined
+  return leaf ?? null
 }
 
-const I18nCtx = createContext<Ctx | null>(null)
+function interpolate(s: string, params?: Record<string, string | number>) {
+  if (!params) return s
+  return s.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`))
+}
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('aoos_lang') as Lang | null
-      if (saved === 'ar' || saved === 'en') return saved
+  const [locale, setLocaleState] = React.useState<Locale>('en')
+
+  // init from storage / browser
+  React.useEffect(() => {
+    const stored = (typeof window !== 'undefined' && localStorage.getItem(STORAGE_KEY)) as Locale | null
+    if (stored === 'en' || stored === 'ar') {
+      setLocaleState(stored)
+    } else {
+      const guess = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : 'en'
+      setLocaleState(guess.startsWith('ar') ? 'ar' : 'en')
     }
-    return 'en'
-  })
+  }, [])
 
-  const setLang = (l: Lang) => {
-    setLangState(l)
-    if (typeof window !== 'undefined') localStorage.setItem('aoos_lang', l)
-  }
-
-  useEffect(() => {
+  // apply <html lang/dir>
+  React.useEffect(() => {
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = lang
-      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'
+      document.documentElement.lang = locale
+      document.documentElement.dir = LANGS[locale].dir
     }
-  }, [lang])
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, locale)
+    }
+  }, [locale])
 
-  const t = (key: string) => {
-    const k = ALIASES[key] ?? key
-    const v = DICT[lang][k] ?? DICT.en[k]
-    if (v === undefined) {
-      if (typeof window !== 'undefined') console.warn('[i18n] Missing key:', key, '(resolved:', k, ')')
+  const setLocale = React.useCallback((l: Locale) => setLocaleState(l), [])
+  const toggleLocale = React.useCallback(() => {
+    setLocaleState((l) => (l === 'en' ? 'ar' : 'en'))
+  }, [])
+
+  const t = React.useCallback(
+    (key: string, params?: Record<string, string | number>) => {
+      const leaf = resolveLeaf(key)
+      if (leaf) {
+        const raw = (leaf as any)[locale] ?? leaf.en
+        return interpolate(raw, params)
+      }
+      // fallback: try common key
+      const commonLeaf = DICT.common[key as keyof typeof DICT.common]
+      if (commonLeaf) {
+        const raw = (commonLeaf as any)[locale] ?? commonLeaf.en
+        return interpolate(raw, params)
+      }
+      // last resort: return key
       return key
-    }
-    return v
-  }
+    },
+    [locale]
+  )
 
-  const value = useMemo(() => ({ lang, setLang, t }), [lang])
+  const value = React.useMemo<I18nCtx>(
+    () => ({ locale, setLocale, toggleLocale, t, dir: LANGS[locale].dir }),
+    [locale, setLocale, toggleLocale, t]
+  )
 
-  return <I18nCtx.Provider value={value}>{children}</I18nCtx.Provider>
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 
-export function useI18n(): Ctx {
-  const ctx = useContext(I18nCtx)
-  if (!ctx) throw new Error('useI18n must be used within I18nProvider')
+export function useI18n() {
+  const ctx = React.useContext(I18nContext)
+  if (!ctx) throw new Error('useI18n must be used within <I18nProvider>')
   return ctx
 }
+
+export { LANGS }
