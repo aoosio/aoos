@@ -47,3 +47,5 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ['/((?!api/webhooks|_next|favicon.ico|images|public).*)'],
 }
+// middleware.ts (only the publicRoutes line changes)
+const publicRoutes = ['/', '/auth/sign-in', '/auth/sign-up', '/auth/callback']
