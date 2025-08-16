@@ -5,8 +5,8 @@ import * as React from 'react'
 
 /**
  * AOOS i18n — deep-key dictionary with back-compat aliases.
- * Fixes missing keys on: home, suggestions, pos, uploads, audit, outbox, team, settings.
- * Usage: const { t, lang, setLang, toggleLocale } = useI18n(); t('home.stats.openInquiries')
+ * Fixes missing keys on: suppliers (plus home, suggestions, pos, uploads, audit, outbox, settings, team).
+ * Usage: const { t, lang, setLang, toggleLocale } = useI18n(); t('suppliers.columns.name')
  */
 
 type Locale = 'en' | 'ar'
@@ -33,6 +33,7 @@ const DICT: DictTree = {
     save: { en: 'Save', ar: 'حفظ' },
     cancel: { en: 'Cancel', ar: 'إلغاء' },
     created: { en: 'Created', ar: 'أُنشئ' },
+    updated: { en: 'Updated', ar: 'تم التحديث' },
     status: { en: 'Status', ar: 'الحالة' },
 
     // Settings shared fields
@@ -56,7 +57,7 @@ const DICT: DictTree = {
     support: { en: 'Support', ar: 'الدعم' },
   },
 
-  // HOME (matches visible keys in the UI)
+  // HOME
   home: {
     title: { en: 'From insight to action', ar: 'من البيانات نتخذ القرارات' },
     subtitle: {
@@ -64,22 +65,18 @@ const DICT: DictTree = {
       ar: 'أرسل أوامر شراء جاهزة للموردين من بيانات المبيعات والمخزون.',
     },
     ready: { en: 'You are ready to start.', ar: 'أنت جاهز للبدء.' },
-
     stats: {
       openInquiries: { en: 'Open inquiries', ar: 'استفسارات مفتوحة' },
       failedSends: { en: 'Failed sends', ar: 'محاولات إرسال فاشلة' },
       pendingSuggestions: { en: 'Pending suggestions', ar: 'اقتراحات قيد الانتظار' },
     },
-
     cta: {
       inquiries: { en: 'Open inquiries', ar: 'عرض الاستفسارات' },
       outbox: { en: 'Open outbox', ar: 'فتح الصادر' },
       reviewNow: { en: 'Review now', ar: 'راجع الآن' },
     },
-
     openSuggestions: { en: 'Open suggestions', ar: 'عرض الاقتراحات' },
     nextActions: { en: 'Next actions', ar: 'الخطوات التالية' },
-
     actions: {
       bulkPrice: {
         title: { en: 'Bulk price opportunity', ar: 'فرصة سعر بالجملة' },
@@ -105,7 +102,7 @@ const DICT: DictTree = {
     },
   },
 
-  // SUGGESTIONS (page uses "suggestions.*" keys)
+  // SUGGESTIONS
   suggestions: {
     title: { en: 'Suggestions', ar: 'الاقتراحات' },
     create: { en: 'Create PO from selection', ar: 'إنشاء أمر شراء من التحديد' },
@@ -114,8 +111,6 @@ const DICT: DictTree = {
     recQty: { en: 'Recommended qty', ar: 'الكمية المقترحة' },
     status: { en: 'Status', ar: 'الحالة' },
     created: { en: 'Created', ar: 'أُنشئ' },
-
-    // Common reasons (if rendered anywhere)
     reasons: {
       refill: { en: 'Refill', ar: 'إعادة تزويد' },
       expiry: { en: 'Expiry risk', ar: 'خطر انتهاء الصلاحية' },
@@ -124,7 +119,7 @@ const DICT: DictTree = {
     },
   },
 
-  // PURCHASE ORDERS (page uses "pos.*" keys)
+  // PURCHASE ORDERS
   pos: {
     title: { en: 'Purchase Orders', ar: 'أوامر الشراء' },
     new: { en: 'New PO', ar: 'أمر شراء جديد' },
@@ -138,32 +133,27 @@ const DICT: DictTree = {
     markDelivered: { en: 'Mark delivered', ar: 'وضع علامة تم التسليم' },
   },
 
-  // UPLOADS (page uses "uploads.*" keys like salesCsv, stockCsv, uploadSales, uploadStock)
+  // UPLOADS
   uploads: {
     title: { en: 'Uploads', ar: 'الملفات' },
-
     salesCsv: { en: 'Sales CSV', ar: 'CSV المبيعات' },
     salesCols: {
       en: 'Columns: product, sold_qty',
       ar: 'الأعمدة: المنتج، الكمية المباعة',
     },
     uploadSales: { en: 'Upload Sales CSV', ar: 'رفع CSV المبيعات' },
-
     stockCsv: { en: 'Stock CSV', ar: 'CSV المخزون' },
     stockCols: {
       en: 'Columns: product, qty, expiry_date?, distributor?, distributor_phone?',
       ar: 'الأعمدة: المنتج، الكمية، تاريخ الانتهاء؟، الموزّع؟، هاتف الموزّع؟',
     },
     uploadStock: { en: 'Upload Stock CSV', ar: 'رفع CSV المخزون' },
-
     templateSales: { en: 'Download Sales Template', ar: 'تحميل قالب المبيعات' },
     templateStock: { en: 'Download Stock Template', ar: 'تحميل قالب المخزون' },
-
     processed: { en: 'Processed', ar: 'مُعالج' },
     failed: { en: 'Failed', ar: 'فشل' },
     inProgress: { en: 'In progress', ar: 'قيد المعالجة' },
-
-    // Back‑compat keys used earlier in some components
+    // legacy keys
     salesUpload: { en: 'Upload Sales CSV', ar: 'رفع CSV المبيعات' },
     stockUpload: { en: 'Upload Stock CSV', ar: 'رفع CSV المخزون' },
   },
@@ -172,14 +162,14 @@ const DICT: DictTree = {
   outbox: {
     title: { en: 'Outbox', ar: 'الصادر' },
     to: { en: 'To (phone)', ar: 'إلى (الهاتف)' },
-    toPhone: { en: 'To (phone)', ar: 'إلى (الهاتف)' }, // alias
+    toPhone: { en: 'To (phone)', ar: 'إلى (الهاتف)' },
     text: { en: 'Message', ar: 'الرسالة' },
     sendTest: { en: 'Send test', ar: 'إرسال تجربة' },
     providerStatus: { en: 'Provider status', ar: 'حالة المزوّد' },
     createdAt: { en: 'Created', ar: 'أُنشئ' },
   },
 
-  // TEMPLATES (minimal)
+  // TEMPLATES
   templates: {
     title: { en: 'Message Templates', ar: 'قوالب الرسائل' },
     ownerOnly: {
@@ -199,7 +189,7 @@ const DICT: DictTree = {
     empty: { en: 'No audit entries yet.', ar: 'لا توجد سجلات بعد.' },
   },
 
-  // SETTINGS (and WhatsApp connect form)
+  // SETTINGS
   settings: {
     title: { en: 'Settings', ar: 'الإعدادات' },
     org: { en: 'Organization', ar: 'المؤسسة' },
@@ -214,7 +204,7 @@ const DICT: DictTree = {
   // TEAM
   team: {
     title: { en: 'Team', ar: 'الفريق' },
-    heading: { en: 'Team', ar: 'الفريق' }, // alias for components using .heading
+    heading: { en: 'Team', ar: 'الفريق' },
     inviteEmail: { en: 'Email to invite', ar: 'البريد الإلكتروني للدعوة' },
     sendInvite: { en: 'Send invite', ar: 'إرسال الدعوة' },
     pendingInvites: { en: 'Pending invites', ar: 'الدعوات المعلّقة' },
@@ -229,6 +219,50 @@ const DICT: DictTree = {
     since: { en: 'Since', ar: 'منذ' },
     status: { en: 'Status', ar: 'الحالة' },
     created: { en: 'Created', ar: 'تم الإنشاء' },
+  },
+
+  // SUPPLIERS (expanded + columns/form to match various usages)
+  suppliers: {
+    title: { en: 'Suppliers', ar: 'الموردون' },
+
+    // table headings (used by many tables)
+    columns: {
+      name: { en: 'Name', ar: 'الاسم' },
+      phone: { en: 'Phone (E.164)', ar: 'الهاتف (E.164)' },
+      preferred_language: { en: 'Language', ar: 'اللغة' },
+      updated: { en: 'Updated', ar: 'آخر تحديث' },
+      updated_at: { en: 'Updated', ar: 'آخر تحديث' },
+      created: { en: 'Created', ar: 'أُنشئ' },
+      actions: { en: 'Actions', ar: 'إجراءات' },
+    },
+
+    // plain keys used in some components
+    name: { en: 'Name', ar: 'الاسم' },
+    phone: { en: 'Phone (E.164)', ar: 'الهاتف (E.164)' },
+    phoneE164: { en: 'Phone (E.164)', ar: 'الهاتف (E.164)' },
+    phone_e164: { en: 'Phone (E.164)', ar: 'الهاتف (E.164)' },
+    preferred_language: { en: 'Language', ar: 'اللغة' },
+    updatedAt: { en: 'Updated', ar: 'آخر تحديث' },
+    updated_at: { en: 'Updated', ar: 'آخر تحديث' },
+
+    // actions
+    add: { en: 'Add supplier', ar: 'إضافة مورد' },
+    addSupplier: { en: 'Add supplier', ar: 'إضافة مورد' },
+    edit: { en: 'Edit supplier', ar: 'تعديل مورد' },
+    editSupplier: { en: 'Edit supplier', ar: 'تعديل مورد' },
+    saveSupplier: { en: 'Save supplier', ar: 'حفظ المورد' },
+    save: { en: 'Save supplier', ar: 'حفظ المورد' },
+    delete: { en: 'Delete supplier', ar: 'حذف المورد' },
+    deleteConfirm: { en: 'Delete supplier?', ar: 'حذف المورد؟' },
+
+    // form labels (if a form component uses nested keys)
+    form: {
+      name: { en: 'Supplier name', ar: 'اسم المورد' },
+      phone: { en: 'Phone (E.164)', ar: 'الهاتف (E.164)' },
+      preferred_language: { en: 'Language', ar: 'اللغة' },
+      submit: { en: 'Save supplier', ar: 'حفظ المورد' },
+      cancel: { en: 'Cancel', ar: 'إلغاء' },
+    },
   },
 }
 
@@ -264,8 +298,19 @@ function aliasPath(path: string): string {
   // outbox.toPhone → outbox.to
   if (path === 'outbox.toPhone') return 'outbox.to'
 
-  // team.heading/title interchangeable
+  // team.heading ↔ team.title
   if (path === 'team.heading') return 'team.title'
+
+  // suppliers common aliases
+  if (path === 'suppliers.addSupplier') return 'suppliers.add'
+  if (path === 'suppliers.editSupplier') return 'suppliers.edit'
+  if (path === 'suppliers.save') return 'suppliers.saveSupplier'
+  if (path === 'suppliers.phoneE164') return 'suppliers.phone'
+  if (path === 'suppliers.phone_e164') return 'suppliers.phone'
+  if (path === 'suppliers.updated_at') return 'suppliers.updatedAt'
+  if (path === 'suppliers.columns.updated_at') return 'suppliers.columns.updated'
+  if (path === 'suppliers.columns.phone_e164') return 'suppliers.columns.phone'
+  if (path === 'suppliers.form.submit') return 'suppliers.saveSupplier'
 
   return path
 }
