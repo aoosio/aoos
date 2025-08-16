@@ -1,234 +1,279 @@
 // app/team/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
 import useSWR from 'swr'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase-client'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table'
+import { useI18n } from '@/lib/i18n'
 
-type Org = { id: string }
+type Role = 'owner' | 'po_manager' | 'viewer'
+type Org = { id: string } | null
+
 type Invite = {
   id: string
-  org_id: string
   email: string
-  role: 'po_manager' | 'owner'
-  token: string
+  role: Role
+  status: 'PENDING' | 'ACCEPTED' | 'CANCELLED'
   created_at: string
 }
-type Member = { user_id: string; role: 'owner' | 'po_manager'; added_at?: string | null }
 
-async function getOrg(): Promise<Org | null> {
-  const { data, error } = await supabase.from('organizations').select('id').maybeSingle()
-  if (error) return null
-  return data as Org | null
+type Member = {
+  user_id: string
+  role: Role
+  created_at: string
+  display_email: string | null // optional, if your schema exposes it
 }
 
-async function loadInvites(): Promise<Invite[]> {
-  const org = await getOrg()
-  if (!org) return []
+async function fetchOrg(): Promise<Org> {
+  const { data, error } = await supabase.from('organizations').select('id').limit(1)
+  if (error) throw error
+  return data?.[0] ?? null
+}
+
+async function myRole(org_id: string): Promise<Role | null> {
+  const { data } = await supabase
+    .from('org_members')
+    .select('role')
+    .eq('org_id', org_id)
+    .limit(1)
+  return (data?.[0]?.role as Role | undefined) ?? null
+}
+
+async function loadInvites(org_id: string): Promise<Invite[]> {
   const { data, error } = await supabase
     .from('org_invites')
-    .select('id,org_id,email,role,token,created_at')
-    .eq('org_id', org.id)
+    .select('id,email,role,status,created_at')
+    .eq('org_id', org_id)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []) as Invite[]
 }
 
-async function loadMembers(): Promise<Member[]> {
-  const org = await getOrg()
-  if (!org) return []
+async function loadMembers(org_id: string): Promise<Member[]> {
+  // If you have a view exposing emails, select it; otherwise we show user_id only.
   const { data, error } = await supabase
     .from('org_members')
-    .select('user_id,role,added_at')
-    .eq('org_id', org.id)
-    .order('added_at', { ascending: false })
+    .select('user_id,role,created_at,display_email') // display_email is optional
+    .eq('org_id', org_id)
+    .order('created_at', { ascending: true })
   if (error) throw error
   return (data ?? []) as Member[]
 }
 
 export default function TeamPage() {
-  const [org, setOrg] = useState<Org | null>(null)
-  const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
+  const { t, lang } = useI18n() as any
+  const [org, setOrg] = useState<Org>(null)
+  const [role, setRole] = useState<Role | null>(null)
+
+  const orgId = org?.id ?? null
 
   useEffect(() => {
-    getOrg().then(setOrg)
+    ;(async () => {
+      const o = await fetchOrg()
+      setOrg(o)
+      if (o) setRole(await myRole(o.id))
+    })()
   }, [])
 
-  const { data: invites, mutate: refetchInvites } = useSWR('invites', loadInvites)
-  const { data: members, mutate: refetchMembers } = useSWR('members', loadMembers)
+  const { data: invites, mutate: refreshInvites } = useSWR(
+    orgId ? ['team/invites', orgId] : null,
+    () => loadInvites(orgId as string)
+  )
 
-  async function sendInvite(e: React.FormEvent) {
-    e.preventDefault()
-    if (!org) return
-    const clean = email.trim().toLowerCase()
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) {
-      setMsg('Enter a valid email.')
+  const { data: members, mutate: refreshMembers } = useSWR(
+    orgId ? ['team/members', orgId] : null,
+    () => loadMembers(orgId as string)
+  )
+
+  // --- Invite form ---
+  const [email, setEmail] = useState('')
+  const [busyInvite, setBusyInvite] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const canInvite = useMemo(() => role === 'owner', [role])
+
+  async function sendInvite() {
+    if (!orgId) return
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+    if (!emailOk) {
+      setToast(lang === 'ar' ? 'بريد غير صالح' : 'Invalid email')
       return
     }
-
-    setBusy(true)
-    setMsg(null)
-
-    // 1) Prevent duplicate pending invite for this email
-    const { data: existing, error: exErr } = await supabase
-      .from('org_invites')
-      .select('id')
-      .eq('org_id', org.id)
-      .eq('email', clean)
-      .maybeSingle()
-
-    if (exErr) {
-      setBusy(false)
-      setMsg(exErr.message)
-      return
-    }
-    if (existing) {
-      setBusy(false)
-      setMsg('Invite already exists for this email.')
-      return
-    }
-
-    // 2) Create invite
-    const { data, error } = await supabase
-      .from('org_invites')
-      .insert({
-        org_id: org.id,
-        email: clean,
-        role: 'po_manager',
-      })
-      .select('token')
-      .maybeSingle()
-
-    setBusy(false)
-    if (error) {
-      setMsg(error.message)
-      return
-    }
-
-    // Optional: copy invite link to clipboard
-    const url = `${location.origin}/invite/${data?.token}`
+    setBusyInvite(true)
+    setToast(null)
     try {
-      await navigator.clipboard.writeText(url)
-      setMsg('Invite created. Link copied to clipboard.')
-    } catch {
-      setMsg(`Invite created. Share this link: ${url}`)
+      const { error } = await supabase
+        .from('org_invites')
+        .insert({
+          org_id: orgId,
+          email: email.trim().toLowerCase(),
+          role: 'po_manager',
+          status: 'PENDING',
+        } as any)
+      if (error) throw error
+      setEmail('')
+      setToast(lang === 'ar' ? 'تم إرسال الدعوة.' : 'Invite sent.')
+      refreshInvites()
+    } catch (e: any) {
+      setToast(e?.message ?? 'Failed to send invite')
+    } finally {
+      setBusyInvite(false)
     }
-    setEmail('')
-    refetchInvites()
   }
 
   async function cancelInvite(id: string) {
-    if (!org) return
-    setBusy(true); setMsg(null)
-    const { error } = await supabase.from('org_invites').delete().eq('id', id).eq('org_id', org.id)
-    setBusy(false)
-    setMsg(error ? error.message : 'Invite cancelled.')
-    refetchInvites()
+    if (!orgId) return
+    try {
+      const { error } = await supabase
+        .from('org_invites')
+        .update({ status: 'CANCELLED' })
+        .eq('id', id)
+        .eq('org_id', orgId)
+        .eq('status', 'PENDING')
+      if (error) throw error
+      refreshInvites()
+    } catch (e: any) {
+      setToast(e?.message ?? 'Failed to cancel invite')
+    }
   }
 
   async function removeMember(user_id: string) {
-    if (!org) return
-    setBusy(true); setMsg(null)
-    const { error } = await supabase
-      .from('org_members')
-      .delete()
-      .eq('org_id', org.id)
-      .eq('user_id', user_id)
-      .neq('role', 'owner') // safety: don’t remove owners via this button
-    setBusy(false)
-    setMsg(error ? error.message : 'Member removed.')
-    refetchMembers()
+    if (!orgId) return
+    try {
+      const { error } = await supabase
+        .from('org_members')
+        .delete()
+        .eq('org_id', orgId)
+        .eq('user_id', user_id)
+        .neq('role', 'owner') // guard on RLS too
+      if (error) throw error
+      refreshMembers()
+    } catch (e: any) {
+      setToast(e?.message ?? 'Failed to remove')
+    }
   }
 
   return (
     <div className="grid gap-6">
+      {/* Invite block */}
       <Card>
-        <h1 className="mb-3 text-lg font-semibold">Team</h1>
-        <form onSubmit={sendInvite} className="grid gap-3 sm:grid-cols-3">
-          <div className="sm:col-span-2">
-            <Label htmlFor="email">Invite PO manager (email)</Label>
+        <h1 className="mb-3 text-lg font-semibold">{t('team.title')}</h1>
+
+        <div className="grid items-end gap-3 sm:grid-cols-[1fr,auto]">
+          <div>
+            <Label>{t('team.inviteEmail')}</Label>
             <Input
-              id="email"
-              type="email"
-              placeholder="person@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              dir="ltr"
             />
           </div>
-          <div className="flex items-end">
-            <Button type="submit" disabled={busy || !email.trim()}>
-              {busy ? 'Working…' : 'Send invite'}
+          <div>
+            <Button onClick={sendInvite} disabled={!canInvite || busyInvite || !email.trim()}>
+              {busyInvite ? t('common.saving') : t('team.sendInvite')}
             </Button>
           </div>
-          {msg && <div className="sm:col-span-3 text-sm text-slate-700">{msg}</div>}
-        </form>
+          {!canInvite && (
+            <div className="sm:col-span-2 text-sm text-slate-500">
+              {lang === 'ar'
+                ? 'فقط مالك الماركت يمكنه إرسال الدعوات.'
+                : 'Only the market owner can send invites.'}
+            </div>
+          )}
+          {toast && <div className="sm:col-span-2 text-sm text-slate-600">{toast}</div>}
+        </div>
       </Card>
 
+      {/* Pending invites */}
       <Card>
-        <h2 className="mb-2 text-base font-semibold">Pending invites</h2>
+        <h2 className="mb-3 text-base font-semibold">{t('team.pendingInvites')}</h2>
         <Table>
           <THead>
             <TR>
               <TH>Email</TH>
               <TH>Role</TH>
+              <TH>Status</TH>
               <TH>Created</TH>
               <TH></TH>
             </TR>
           </THead>
           <TBody>
-            {(invites ?? []).length === 0 && (
-              <TR><TD colSpan={4} className="text-slate-500">No pending invites.</TD></TR>
-            )}
-            {(invites ?? []).map((i) => (
-              <TR key={i.id}>
-                <TD>{i.email}</TD>
-                <TD>{i.role}</TD>
-                <TD>{new Date(i.created_at).toLocaleString()}</TD>
+            {(invites ?? []).map((inv) => (
+              <TR key={inv.id}>
+                <TD className="font-mono">{inv.email}</TD>
+                <TD>{inv.role}</TD>
+                <TD>{inv.status}</TD>
+                <TD>{new Date(inv.created_at).toLocaleString()}</TD>
                 <TD className="text-right">
-                  <Button variant="secondary" onClick={() => cancelInvite(i.id)}>Cancel</Button>
-                </TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
-      </Card>
-
-      <Card>
-        <h2 className="mb-2 text-base font-semibold">Members</h2>
-        <Table>
-          <THead>
-            <TR>
-              <TH>User</TH>
-              <TH>Role</TH>
-              <TH>Added</TH>
-              <TH></TH>
-            </TR>
-          </THead>
-          <TBody>
-            {(members ?? []).length === 0 && (
-              <TR><TD colSpan={4} className="text-slate-500">No members yet.</TD></TR>
-            )}
-            {(members ?? []).map((m) => (
-              <TR key={m.user_id}>
-                <TD className="truncate max-w-[20rem]">{m.user_id}</TD>
-                <TD>{m.role}</TD>
-                <TD>{m.added_at ? new Date(m.added_at).toLocaleString() : '-'}</TD>
-                <TD className="text-right">
-                  {m.role !== 'owner' && (
-                    <Button variant="secondary" onClick={() => removeMember(m.user_id)}>
-                      Remove
+                  {inv.status === 'PENDING' && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => cancelInvite(inv.id)}
+                      disabled={!canInvite}
+                    >
+                      {t('team.cancel')}
                     </Button>
                   )}
                 </TD>
               </TR>
             ))}
+            {(!invites || invites.length === 0) && (
+              <TR>
+                <TD colSpan={5} className="text-slate-500">
+                  {lang === 'ar' ? 'لا توجد دعوات.' : 'No invites.'}
+                </TD>
+              </TR>
+            )}
+          </TBody>
+        </Table>
+      </Card>
+
+      {/* Members */}
+      <Card>
+        <h2 className="mb-3 text-base font-semibold">{t('team.members')}</h2>
+        <Table>
+          <THead>
+            <TR>
+              <TH>User</TH>
+              <TH>Role</TH>
+              <TH>Since</TH>
+              <TH></TH>
+            </TR>
+          </THead>
+          <TBody>
+            {(members ?? []).map((m) => {
+              const removable = role === 'owner' && m.role !== 'owner'
+              const label = m.display_email || m.user_id
+              return (
+                <TR key={m.user_id}>
+                  <TD className="font-mono">{label}</TD>
+                  <TD>{m.role}</TD>
+                  <TD>{new Date(m.created_at).toLocaleDateString()}</TD>
+                  <TD className="text-right">
+                    <Button
+                      variant="secondary"
+                      onClick={() => removeMember(m.user_id)}
+                      disabled={!removable}
+                    >
+                      {t('team.remove')}
+                    </Button>
+                  </TD>
+                </TR>
+              )
+            })}
+            {(!members || members.length === 0) && (
+              <TR>
+                <TD colSpan={4} className="text-slate-500">
+                  {lang === 'ar' ? 'لا يوجد أعضاء.' : 'No members.'}
+                </TD>
+              </TR>
+            )}
           </TBody>
         </Table>
       </Card>
