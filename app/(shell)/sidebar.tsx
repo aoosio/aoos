@@ -65,10 +65,11 @@ export default function Sidebar() {
   }, [])
 
   const main: NavItem[] = [
-    { href: '/', icon: Home, key: 'nav.home', fallback: 'Home' },
+    // CHANGED: Home now points to /home (auth-first routing)
+    { href: '/home', icon: Home, key: 'nav.home', fallback: 'Home' },
     { href: '/suggestions', icon: Boxes, key: 'nav.suggestions', fallback: 'Suggestions' },
     { href: '/pos', icon: ClipboardList, key: 'nav.pos', fallback: 'POs' },
-    // CHANGE: show Team for everyone (actions are still owner-gated by RLS)
+    // Keep Team visible to everyone; actions are owner/admin gated by RLS
     { href: '/team', icon: UserPlus, key: 'nav.team', fallback: 'Team', show: true },
     { href: '/suppliers', icon: Users, key: 'nav.suppliers', fallback: 'Suppliers' },
     { href: '/uploads', icon: Upload, key: 'nav.uploads', fallback: 'Uploads' },
@@ -108,14 +109,14 @@ export default function Sidebar() {
         <div className="mb-4 px-2 text-lg font-semibold text-blue-700">AOOS</div>
 
         <nav className="flex flex-col gap-1">
-          {main.filter(i => i.show === undefined || i.show).map(renderItem)}
+          {main.filter((i) => i.show === undefined || i.show).map(renderItem)}
 
           {isPlatformAdmin && (
             <>
               <div className="mt-3 mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 {t('nav.admin') === 'nav.admin' ? 'Admin' : t('nav.admin')}
               </div>
-              {admin.filter(i => i.show === undefined || i.show).map(renderItem)}
+              {admin.filter((i) => i.show === undefined || i.show).map(renderItem)}
             </>
           )}
         </nav>
