@@ -68,7 +68,8 @@ export default function Sidebar() {
     { href: '/', icon: Home, key: 'nav.home', fallback: 'Home' },
     { href: '/suggestions', icon: Boxes, key: 'nav.suggestions', fallback: 'Suggestions' },
     { href: '/pos', icon: ClipboardList, key: 'nav.pos', fallback: 'POs' },
-    { href: '/team', icon: UserPlus, key: 'nav.team', fallback: 'Team', show: isOwner }, // invite/manage PO managers
+    // CHANGE: show Team for everyone (actions are still owner-gated by RLS)
+    { href: '/team', icon: UserPlus, key: 'nav.team', fallback: 'Team', show: true },
     { href: '/suppliers', icon: Users, key: 'nav.suppliers', fallback: 'Suppliers' },
     { href: '/uploads', icon: Upload, key: 'nav.uploads', fallback: 'Uploads' },
     { href: '/outbox', icon: MessageSquare, key: 'nav.outbox', fallback: 'Outbox' },
