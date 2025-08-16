@@ -1,4 +1,3 @@
-// lib/i18n.tsx
 'use client'
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
@@ -22,12 +21,15 @@ const DICT: Record<Lang, Dict> = {
     'common.signIn': 'Sign in',
     'common.signOut': 'Sign out',
     'common.languageTag': 'Language',
+
+    // nav (global/admin)
     'nav.people': 'People',
     'nav.support': 'Support',
     'nav.admin': 'Admin',
     'nav.adminDashboard': 'Dashboard',
     'nav.adminMessages': 'Messages',
-    // nav
+
+    // nav (app)
     'nav.home': 'Home',
     'nav.suggestions': 'Suggestions',
     'nav.pos': 'Purchase Orders',
@@ -37,6 +39,27 @@ const DICT: Record<Lang, Dict> = {
     'nav.templates': 'Templates',
     'nav.audit': 'Audit',
     'nav.settings': 'Settings',
+    'nav.team': 'Team',
+
+    // Team (EN)
+    'team.title': 'Team',
+    'team.inviteEmail': 'Email to invite',
+    'team.inviteHint': 'We will email a magic link and add them as a PO Manager.',
+    'team.inviteBtn': 'Invite manager',
+    'team.sending': 'Sending…',
+    'team.sent': 'Invitation sent.',
+    'team.ownerOnly': 'Only owners can invite and manage members.',
+    'team.members': 'Members',
+    'team.col.role': 'Role',
+    'team.col.email': 'Email',
+    'team.col.status': 'Status',
+    'team.col.joined': 'Joined',
+    'team.active': 'Active',
+    'team.inactive': 'Inactive',
+    'team.ownerBadge': 'Owner',
+    'team.activate': 'Activate',
+    'team.deactivate': 'Deactivate',
+    'team.enterEmail': 'Enter an email.',
 
     // settings
     'settings.org': 'Organization',
@@ -95,7 +118,6 @@ const DICT: Record<Lang, Dict> = {
     'sug.col.status': 'Status',
     'sug.col.created': 'Created',
     'sug.col.actions': '',
-
     // home
     'home.stats.openInquiries': 'Open inquiries',
     'home.stats.failedSends': 'Failed WhatsApp sends (last 30d)',
@@ -130,12 +152,15 @@ const DICT: Record<Lang, Dict> = {
     'common.signIn': 'تسجيل الدخول',
     'common.signOut': 'تسجيل الخروج',
     'common.languageTag': 'اللغة',
+
+    // nav (global/admin)
     'nav.people': 'الأشخاص',
     'nav.support': 'الدعم',
     'nav.admin': 'لوحة التحكم',
     'nav.adminDashboard': 'الإحصائيات',
     'nav.adminMessages': 'الرسائل',
-    // nav
+
+    // nav (app)
     'nav.home': 'الرئيسية',
     'nav.suggestions': 'الاقتراحات',
     'nav.pos': 'أوامر الشراء',
@@ -145,6 +170,27 @@ const DICT: Record<Lang, Dict> = {
     'nav.templates': 'القوالب',
     'nav.audit': 'السجل',
     'nav.settings': 'الإعدادات',
+    'nav.team': 'الفريق',
+
+    // Team (AR)
+    'team.title': 'الفريق',
+    'team.inviteEmail': 'بريد المدير للدعوة',
+    'team.inviteHint': 'سنرسل رابط دخول ونضيفه كمسؤول مشتريات.',
+    'team.inviteBtn': 'دعوة مدير مشتريات',
+    'team.sending': 'جارٍ الإرسال…',
+    'team.sent': 'تم إرسال الدعوة.',
+    'team.ownerOnly': 'فقط المالك يمكنه دعوة وإدارة الأعضاء.',
+    'team.members': 'الأعضاء',
+    'team.col.role': 'الدور',
+    'team.col.email': 'البريد',
+    'team.col.status': 'الحالة',
+    'team.col.joined': 'تاريخ الانضمام',
+    'team.active': 'نشط',
+    'team.inactive': 'غير نشط',
+    'team.ownerBadge': 'مالك',
+    'team.activate': 'تفعيل',
+    'team.deactivate': 'إلغاء التفعيل',
+    'team.enterEmail': 'أدخل بريداً إلكترونياً.',
 
     // settings
     'settings.org': 'المنظمة',
@@ -253,9 +299,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [lang])
 
   const t = (key: string) => {
-    const v = DICT[lang][key]
+    const v = DICT[lang][key] ?? DICT.en[key]
     if (v === undefined) {
-      // Helpful during development to spot missing keys.
       if (typeof window !== 'undefined') console.warn('[i18n] Missing key:', key)
       return key
     }
