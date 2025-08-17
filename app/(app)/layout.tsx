@@ -1,17 +1,17 @@
-import './globals.css'
-import { I18nProvider } from '@/lib/i18n'
-import { cookies } from 'next/headers'
+// app/(app)/layout.tsx
+import Topbar from '@/components/layout/Topbar'
+import Sidebar from '@/components/layout/Sidebar'
 
-export const metadata = { title: 'AOOS', description: 'From insight to action.' }
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const cookieLang = cookies().get('aoos.lang')?.value === 'ar' ? 'ar' : 'en'
-  const dir = cookieLang === 'ar' ? 'rtl' : 'ltr'
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={cookieLang} dir={dir} suppressHydrationWarning>
-      <body className="min-h-screen antialiased">
-        <I18nProvider>{children}</I18nProvider>
-      </body>
-    </html>
+    <div className="min-h-screen">
+      <Topbar />
+      <div className="mx-auto grid max-w-7xl grid-cols-1 md:grid-cols-[260px_1fr] gap-6 px-6 py-6">
+        <aside className="hidden md:block">
+          <Sidebar />
+        </aside>
+        <main>{children}</main>
+      </div>
+    </div>
   )
 }
