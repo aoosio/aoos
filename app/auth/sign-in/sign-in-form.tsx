@@ -4,7 +4,6 @@ import { useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function SignInForm() {
-  const supabase = createClientComponentClient()
   const qp = useSearchParams()
   const [email, setEmail] = useState(qp.get('email') || '')
   const [password, setPassword] = useState('')
@@ -13,6 +12,7 @@ export default function SignInForm() {
 
   async function signInPassword() {
     setBusy(true); setMsg(null)
+    const supabase = createClientComponentClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setBusy(false); if (error) setMsg(error.message)
     else window.location.href = '/home'
@@ -20,7 +20,11 @@ export default function SignInForm() {
 
   async function sendMagic() {
     setBusy(true); setMsg(null)
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/auth/callback` } })
+    const supabase = createClientComponentClient()
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${location.origin}/auth/callback` },
+    })
     setBusy(false); if (error) setMsg(error.message)
     else setMsg('Check your email for the magic link.')
   }
