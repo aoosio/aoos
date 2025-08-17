@@ -76,7 +76,16 @@ export async function getDbShape(): Promise<Shape> {
   const shape: Shape = {
     orgs: {
       table: orgTable,
-      cols: await cols(orgTable, ['id','created_by','name']),
+      cols: await cols(orgTable, [
+        'id',
+        'created_by',
+        'name',
+        // extended org fields (schema-adaptive)
+        'industry_type','org_type','type',
+        'country','state','phone',
+        'default_language',
+        'ssi_days','sla_target_days','default_dial_code',
+      ]),
     },
     members: {
       table: membersTable,
