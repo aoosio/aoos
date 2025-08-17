@@ -2,23 +2,9 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { getSupabaseClient } from '@/lib/supabase-client'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL
-
-function makeClient() {
-  if (!SUPABASE_URL || !SUPABASE_ANON) {
-    throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY'
-    )
-  }
-  return createClientComponentClient({
-    supabaseUrl: SUPABASE_URL,
-    supabaseKey: SUPABASE_ANON,
-  })
-}
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('')
@@ -27,10 +13,9 @@ export default function SignUpPage() {
   const [busy, setBusy] = useState(false)
 
   async function signUp() {
-    setBusy(true)
-    setMsg(null)
+    setBusy(true); setMsg(null)
     try {
-      const supabase = makeClient()
+      const supabase = await getSupabaseClient()
       const redirectTo = `${APP_URL || location.origin}/auth/callback`
       const { error } = await supabase.auth.signUp({
         email,
@@ -41,41 +26,21 @@ export default function SignUpPage() {
       setMsg('Check your email to confirm your account.')
     } catch (e: any) {
       setMsg(e.message || 'Failed to sign up')
-    } finally {
-      setBusy(false)
-    }
+    } finally { setBusy(false) }
   }
 
   return (
     <main className="mx-auto max-w-md px-6 py-16">
       <h1 className="mb-2 text-2xl font-semibold">Create account</h1>
       <div className="mt-4 space-y-3">
-        <input
-          className="w-full rounded border px-3 py-2"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          type="password"
-          className="w-full rounded border px-3 py-2"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <input className="w-full rounded border px-3 py-2" placeholder="Email" value={email} onChange={(e)=>setEmail(e.target.value)} />
+        <input type="password" className="w-full rounded border px-3 py-2" placeholder="Password" value={password} onChange={(e)=>setPassword(e.target.value)} />
         {msg && <p className="text-sm text-red-600">{msg}</p>}
-        <button
-          onClick={signUp}
-          disabled={busy}
-          className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50"
-        >
+        <button onClick={signUp} disabled={busy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">
           {busy ? 'Creating…' : 'Sign up'}
         </button>
         <p className="mt-2 text-sm">
-          Already have an account?{' '}
-          <a href="/auth/sign-in" className="underline">
-            Sign in
-          </a>
+          Already have an account? <a href="/auth/sign-in" className="underline">Sign in</a>
         </p>
       </div>
     </main>
