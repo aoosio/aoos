@@ -1,25 +1,25 @@
+// app/api/invite/route.ts
+export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const SRK = process.env.SUPABASE_SERVICE_ROLE_KEY! // set in Vercel
-const supa = createClient(SUPABASE_URL, SRK)
+import { getServiceClient } from '@/lib/supabase-server'
 
 export async function POST(req: Request) {
-  const { org_id, email, role } = await req.json()
-  if (!org_id || !email || !['owner','po_manager'].includes(role)) {
-    return new Response('org_id,email,role required', { status: 400 })
+  try {
+    const { email } = await req.json()
+    if (!email || typeof email !== 'string') {
+      return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
+    }
+
+    const supa = getServiceClient()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const redirectTo = appUrl ? `${appUrl}/auth/callback` : undefined
+
+    // Send Supabase Auth invite (no custom tables needed)
+    const { data, error } = await supa.auth.admin.inviteUserByEmail(email, { redirectTo })
+    if (error) throw error
+
+    return NextResponse.json({ ok: true, user_id: data?.user?.id ?? null })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || 'Failed' }, { status: 500 })
   }
-  // create/invite user
-  const { data: invite, error: invErr } = await supa.auth.admin.inviteUserByEmail(email)
-  if (invErr) return new Response(invErr.message, { status: 400 })
-  const user_id = invite.user?.id
-  if (!user_id) return new Response('No user id', { status: 400 })
-
-  // attach to org
-  const { error: upErr } = await supa.from('org_members')
-    .upsert({ org_id, user_id, role }, { onConflict: 'org_id,user_id' })
-  if (upErr) return new Response(upErr.message, { status: 400 })
-
-  return NextResponse.json({ ok: true })
 }

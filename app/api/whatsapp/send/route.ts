@@ -1,3 +1,4 @@
+export const runtime = 'nodejs'
 // app/api/whatsapp/send/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";

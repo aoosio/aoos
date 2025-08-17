@@ -1,3 +1,4 @@
+export const runtime = 'nodejs'
 // app/api/admin/messages/send/route.ts
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
