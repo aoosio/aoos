@@ -1,28 +1,53 @@
-export default function NewPO() {
-  return (
-    <section>
-      <h1 className="text-xl font-semibold">New Purchase Order</h1>
-      <p className="mt-2 text-neutral-700">Fill details and create a PO.</p>
+'use client'
+import { useEffect, useMemo, useState } from 'react'
 
-      <form className="mt-6 space-y-4">
-        <div>
-          <label className="block text-sm">Supplier</label>
-          <input className="mt-1 w-full rounded border px-3 py-2" placeholder="Supplier name" />
+type Supplier = { id: string; name: string; phone: string }
+
+export default function NewPOPage() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [q, setQ] = useState('')
+  const [supplierId, setSupplierId] = useState<string>('')
+  const [poMsg, setPoMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch('/api/suppliers/list', { cache: 'no-store' })
+      const j = await res.json()
+      if (res.ok) setSuppliers(j.suppliers || []); else setPoMsg(j.error || 'Failed to load suppliers')
+    })()
+  }, [])
+
+  const filtered = useMemo(() => {
+    const k = q.trim().toLowerCase()
+    if (!k) return suppliers
+    return suppliers.filter(s => (s.name||'').toLowerCase().includes(k) || (s.phone||'').toLowerCase().includes(k))
+  }, [q, suppliers])
+
+  async function createPO() {
+    setPoMsg(null)
+    if (!supplierId) { setPoMsg('Select a supplier'); return }
+    // TODO: call your /api/pos/create when ready; for now just confirm selection
+    setPoMsg('Supplier selected. Implement /api/pos/create to finalize PO.')
+  }
+
+  return (
+    <main className="space-y-4">
+      <h1 className="text-xl font-semibold">New Purchase Order</h1>
+      <div className="rounded border p-4 shadow-soft">
+        <div className="mb-2 text-sm text-neutral-600">Pick supplier:</div>
+        <input className="mb-2 w-full rounded border px-3 py-2" placeholder="Search suppliers…" value={q} onChange={e=>setQ(e.target.value)} />
+        <div className="max-h-64 overflow-auto rounded border">
+          {filtered.map(s => (
+            <label key={s.id} className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 last:border-b-0">
+              <input type="radio" name="supplier" value={s.id} checked={supplierId===s.id} onChange={()=>setSupplierId(s.id)} />
+              <span className="text-sm">{s.name} <span className="text-neutral-500">({s.phone})</span></span>
+            </label>
+          ))}
+          {!filtered.length && <div className="px-3 py-2 text-sm text-neutral-500">No suppliers found.</div>}
         </div>
-        <div>
-          <label className="block text-sm">Promised date</label>
-          <input type="date" className="mt-1 w-full rounded border px-3 py-2" />
-        </div>
-        <div className="rounded border p-4">
-          <div className="mb-2 font-semibold">Items</div>
-          <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
-            <input className="rounded border px-3 py-2" placeholder="Product" />
-            <input className="rounded border px-3 py-2" placeholder="Qty" />
-          </div>
-          <button type="button" className="mt-3 rounded border px-3 py-1">Add item</button>
-        </div>
-        <button className="rounded bg-brand px-4 py-2 text-white">Create PO</button>
-      </form>
-    </section>
+        <button onClick={createPO} className="mt-3 rounded bg-brand px-3 py-2 text-white">Continue</button>
+        {poMsg && <p className="mt-2 text-sm">{poMsg}</p>}
+      </div>
+    </main>
   )
 }

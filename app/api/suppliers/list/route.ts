@@ -1,9 +1,8 @@
-// app/api/suppliers/list/route.ts
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getServiceClient, getUserId } from '@/lib/supabase-server'
+import { getServiceClient, getUserId, ensureOrgContext } from '@/lib/supabase-server'
 import { getDbShape } from '@/lib/db-adapter'
 
 export async function GET() {
@@ -14,23 +13,18 @@ export async function GET() {
     const svc = getServiceClient()
     const shape = await getDbShape()
 
-    // Get caller org
-    const { data: myMem } = await svc
-      .from(shape.members.table)
-      .select('org_id')
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle()
-    const org_id = myMem?.org_id ?? null
+    const org_id = await ensureOrgContext(userId)
+    if (!org_id && shape.suppliers.cols.org_id) {
+      return NextResponse.json({ suppliers: [], warning: 'No organization context' })
+    }
 
-    let query = svc.from(shape.suppliers.table).select('*').order('created_at', { ascending: false })
-    if (shape.suppliers.cols.org_id && org_id) query = query.eq('org_id', org_id)
-    else if (!shape.suppliers.cols.org_id && shape.suppliers.cols.created_by) query = query.eq('created_by', userId)
+    let q = svc.from(shape.suppliers.table).select('*').order('created_at', { ascending: false })
+    if (shape.suppliers.cols.org_id && org_id) q = q.eq('org_id', org_id)
+    else if (!shape.suppliers.cols.org_id && shape.suppliers.cols.created_by) q = q.eq('created_by', userId)
 
-    const { data, error } = await query
+    const { data, error } = await q
     if (error) throw error
 
-    // Normalize output for the UI
     const list = (data || []).map((r: any) => ({
       id: r.id,
       name: r.name ?? r.supplier_name ?? '',
