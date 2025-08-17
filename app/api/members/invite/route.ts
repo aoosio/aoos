@@ -1,41 +1,52 @@
-// app/api/members/invite/route.ts
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getUserClient, getServiceClient } from '@/lib/supabase-server'
-import { requireOrgRole } from '@/lib/rbac'
+import { getServiceClient, getUserId, ensureOrgContext, getRoles } from '@/lib/supabase-server'
 import { getDbShape } from '@/lib/db-adapter'
 
 export async function POST(req: Request) {
   try {
-    const { org_id, email, role } = await req.json()
-    if (!org_id) return NextResponse.json({ error: 'org_id required' }, { status: 400 })
-    if (!email)  return NextResponse.json({ error: 'email required' }, { status: 400 })
+    const userId = await getUserId()
+    if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 
-    // Only OWNER can invite (per policy)
-    await requireOrgRole(org_id, ['OWNER'])
+    const { org_role, is_platform_owner, is_platform_admin } = await getRoles(userId)
+    if (!is_platform_owner && !is_platform_admin && org_role !== 'OWNER') {
+      return NextResponse.json({ error: 'Only owners (or staff) can invite' }, { status: 403 })
+    }
 
-    const supabase = getUserClient()
-    const shape = await getDbShape()
+    const { email, role } = await req.json()
+    if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 })
 
-    // Allow only ADMIN or PO_MANAGER at org level
-    const allowed = new Set(['ADMIN','PO_MANAGER'])
-    const safeRole = allowed.has(String(role || '').toUpperCase()) ? String(role).toUpperCase() : 'PO_MANAGER'
+    const allowedRoles = ['ADMIN','PO_MANAGER'] as const
+    const safeRole = (allowedRoles as readonly string[]).includes(role) ? role : 'PO_MANAGER'
 
-    // Send invite email (requires service role)
     const svc = getServiceClient()
+    const shape = await getDbShape()
+    const org_id = await ensureOrgContext(userId)
+    if (!org_id) return NextResponse.json({ error: 'Create an organization first' }, { status: 400 })
+
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
     const redirectTo = appUrl ? `${appUrl}/auth/callback` : undefined
     const { data: invited, error: invErr } = await svc.auth.admin.inviteUserByEmail(email, { redirectTo })
     if (invErr) throw invErr
     const invitedUserId = invited?.user?.id ?? null
 
-    // Optional: record invitation if invites table exists
     if (shape.invites) {
-      const row: any = { org_id, email, role: safeRole, status: 'INVITED' }
+      const row: any = { org_id, email, role: safeRole, status: 'INVITED', invited_by: userId }
       if (shape.invites.cols.user_id && invitedUserId) row.user_id = invitedUserId
-      await supabase.from(shape.invites.table).insert(row)
+      await svc.from(shape.invites.table).insert(row)
+    } else if (shape.members.cols.email && shape.members.cols.status) {
+      const m: any = { org_id, role: safeRole, is_active: false, status: 'INVITED' }
+      if (shape.members.cols.email) m.email = email
+      if (shape.members.cols.user_id && invitedUserId) m.user_id = invitedUserId
+      await svc.from(shape.members.table).insert(m)
+    } else if (shape.members.cols.user_id && invitedUserId) {
+      const m: any = { org_id, user_id: invitedUserId }
+      if (shape.members.cols.role) m.role = safeRole
+      if (shape.members.cols.is_active) m.is_active = false
+      if (shape.members.cols.status) m.status = 'INVITED'
+      await svc.from(shape.members.table).insert(m)
     }
 
     return NextResponse.json({ ok: true })

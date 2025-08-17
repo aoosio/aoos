@@ -1,4 +1,3 @@
-// app/api/settings/save/route.ts
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -13,17 +12,26 @@ function splitIndustry(code?: string | null) {
   return { main: parts[0] || null, sub: parts.slice(1).join('_') || null }
 }
 
+async function resolveOrgId(supabase: ReturnType<typeof getUserClient>, org_id?: string | null) {
+  if (org_id) return org_id
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data: mem } = await supabase.from('org_members')
+    .select('org_id').eq('user_id', user.id).eq('is_active', true)
+    .order('org_id', { ascending: true }).limit(1).maybeSingle()
+  return mem?.org_id ?? null
+}
+
 export async function POST(req: Request) {
   try {
-    const { org_id, org } = await req.json()
-    if (!org_id) return NextResponse.json({ error: 'org_id required' }, { status: 400 })
+    const { org_id: rawOrg, org } = await req.json()
+    const supabase = getUserClient()
+    const org_id = await resolveOrgId(supabase, rawOrg)
+    if (!org_id) return NextResponse.json({ error: 'No organization found' }, { status: 400 })
 
-    // OWNER only; Admin = view-only by RLS
     await requireOrgRole(org_id, ['OWNER'])
 
-    const supabase = getUserClient()
     const shape = await getDbShape()
-
     const src = (org && typeof org === 'object') ? org : {}
     const upd: any = {}
 
@@ -46,10 +54,8 @@ export async function POST(req: Request) {
     if (shape.orgs.cols.default_dial_code && src.default_dial_code !== undefined) upd.default_dial_code = String(src.default_dial_code)
 
     if (!Object.keys(upd).length) return NextResponse.json({ ok: true, changed: 0 })
-
     const { error } = await supabase.from(shape.orgs.table).update(upd).eq('id', org_id)
     if (error) throw error
-
     return NextResponse.json({ ok: true, changed: 1 })
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Failed to save settings' }, { status: 500 })

@@ -1,47 +1,20 @@
-'use client'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import type { Route } from 'next'
+import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import SidebarClient, { type Flags } from './Sidebar.client'
+import { getRoles } from '@/lib/supabase-server'
 
-type Item = { href: Route; label: string }
+export default async function Sidebar() {
+  const supabase = createServerComponentClient({ cookies })
+  const { data } = await supabase.auth.getUser()
+  let flags: Flags = { isStaff: false, canTeamManage: false, isOrgMember: false }
 
-const items: readonly Item[] = [
-  { href: '/home', label: 'Home' },
-  { href: '/suggestions', label: 'Suggestions' },
-  { href: '/pos', label: 'Purchase Orders' },
-  { href: '/people', label: 'People' },
-  { href: '/suppliers', label: 'Suppliers' },
-  { href: '/uploads', label: 'Uploads' },
-  { href: '/outbox', label: 'Outbox' },
-  { href: '/templates', label: 'Templates' },
-  { href: '/audit', label: 'Audit' },
-  { href: '/settings', label: 'Settings' },
-  { href: '/support', label: 'Support' },
-  { href: '/admin', label: 'Admin' },
-  { href: '/admin/messages', label: 'Platform Inbox' },
-] as const
+  if (data?.user?.id) {
+    const roles = await getRoles(data.user.id)
+    const isStaff = !!(roles.is_platform_owner || roles.is_platform_admin)
+    const canTeamManage = roles.org_role === 'OWNER' || roles.org_role === 'ADMIN'
+    const isOrgMember = !!roles.org_role
+    flags = { isStaff, canTeamManage, isOrgMember }
+  }
 
-export default function Sidebar() {
-  const pathname = usePathname()
-  return (
-    <nav className="rounded border p-2 shadow-soft">
-      <ul className="space-y-1">
-        {items.map((i) => {
-          const active = pathname === i.href || pathname?.startsWith(`${i.href}/`)
-          return (
-            <li key={i.href}>
-              <Link
-                href={i.href}
-                className={`block rounded px-3 py-2 text-sm hover:bg-neutral-50 ${
-                  active ? 'bg-brand/10 text-brand-800 font-medium' : ''
-                }`}
-              >
-                {i.label}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
-  )
+  return <SidebarClient flags={flags} />
 }

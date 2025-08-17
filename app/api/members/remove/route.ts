@@ -1,38 +1,30 @@
-// app/api/members/remove/route.ts
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getUserClient } from '@/lib/supabase-server'
-import { requireOrgRole } from '@/lib/rbac'
+import { getServiceClient, getUserId, ensureOrgContext, getRoles } from '@/lib/supabase-server'
+import { getDbShape } from '@/lib/db-adapter'
 
 export async function POST(req: Request) {
   try {
-    const { org_id, user_id } = await req.json() as { org_id?: string; user_id?: string }
-    if (!org_id || !user_id) return new Response('org_id and user_id are required', { status: 400 })
+    const userId = await getUserId()
+    if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
+    const { org_role } = await getRoles(userId)
+    if (org_role !== 'OWNER') return NextResponse.json({ error: 'Only owners can remove members' }, { status: 403 })
 
-    // Only owners can remove members
-    await requireOrgRole(org_id, ['OWNER'])
+    const { user_id } = await req.json()
+    if (!user_id) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
 
-    const supabase = getUserClient()
+    const svc = getServiceClient()
+    const shape = await getDbShape()
+    const org_id = await ensureOrgContext(userId)
+    if (!org_id) return NextResponse.json({ error: 'No organization' }, { status: 400 })
 
-    // Prevent removing the owner
-    const { data: target, error: tErr } = await supabase
-      .from('org_members')
-      .select('role')
-      .eq('org_id', org_id)
-      .eq('user_id', user_id)
-      .maybeSingle()
-    if (tErr) return new Response(tErr.message, { status: 400 })
-    if (!target) return new Response('Member not found', { status: 404 })
-    if (String(target.role).toUpperCase() === 'OWNER')
-      return new Response('Cannot remove the Owner', { status: 400 })
-
-    const { error } = await supabase.from('org_members').delete().match({ org_id, user_id })
-    if (error) return new Response(error.message, { status: 400 })
+    const { error } = await svc.from(shape.members.table).delete().match({ org_id, user_id })
+    if (error) throw error
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    return new Response(e.message || 'Failed to remove member', { status: 500 })
+    return NextResponse.json({ error: e.message || 'Failed to remove' }, { status: 500 })
   }
 }
