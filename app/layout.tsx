@@ -1,9 +1,6 @@
 import './globals.css'
 
-export const metadata = {
-  title: 'AOOS',
-  description: 'From insight to action.',
-}
+export const metadata = { title: 'AOOS', description: 'From insight to action.' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

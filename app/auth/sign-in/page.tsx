@@ -1,9 +1,14 @@
+import { Suspense } from 'react'
 import SignInForm from './sign-in-form'
-
-export default function SignInPage({
-  searchParams,
-}: { searchParams?: { redirect?: string | string[] } }) {
-  const raw = Array.isArray(searchParams?.redirect) ? searchParams?.redirect[0] : searchParams?.redirect
-  const redirect = typeof raw === 'string' && raw.startsWith('/') ? raw : '/home'
-  return <SignInForm redirect={redirect} />
+export const dynamic = 'force-dynamic'
+export default function SignInPage() {
+  return (
+    <main className="mx-auto max-w-md px-6 py-16">
+      <h1 className="mb-2 text-2xl font-semibold">Sign in</h1>
+      <p className="mb-6 text-neutral-700">Use email magic link or password.</p>
+      <Suspense fallback={<div>Loading…</div>}>
+        <SignInForm />
+      </Suspense>
+    </main>
+  )
 }
