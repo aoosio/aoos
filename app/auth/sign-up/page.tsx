@@ -28,6 +28,10 @@ export default function SignUpPage() {
       setMsg(e.message || 'Failed to sign up')
     } finally { setBusy(false) }
   }
+const supabase = createClientComponentClient({
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+})
 
   return (
     <main className="mx-auto max-w-md px-6 py-16">

@@ -39,6 +39,10 @@ export default function SignInForm() {
       setMsg(e.message || 'Could not send magic link')
     } finally { setBusy(false) }
   }
+const supabase = createClientComponentClient({
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+})
 
   return (
     <form className="space-y-3">
