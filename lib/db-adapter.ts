@@ -1,7 +1,7 @@
 // lib/db-adapter.ts
 import { getServiceClient } from './supabase-server'
 
-/** Explicit module marker for TS watchers */
+/** Force module mode for TS and also export default to avoid any resolver edge cases. */
 export {}
 
 export type TableCols = Record<string, boolean>
@@ -21,22 +21,49 @@ export type Shape = {
 
 let cached: Shape | null = null
 
+function isMissingTableErr(err: any) {
+  const code = String(err?.code || '').toUpperCase()
+  const msg  = String(err?.message || '').toLowerCase()
+  return (
+    code === '42P01' ||                       // postgres: undefined_table
+    code.startsWith('PGRST') ||               // postgrest schema cache errors
+    /schema cache/.test(msg) ||
+    /not exist/.test(msg) ||
+    /could not find.*(relation|table)/.test(msg)
+  )
+}
+
+function isMissingColumnErr(err: any) {
+  const code = String(err?.code || '').toUpperCase()
+  const msg  = String(err?.message || '').toLowerCase()
+  return (
+    code === '42703' ||                       // postgres: undefined_column
+    code.startsWith('PGRST') ||               // postgrest schema cache errors
+    /schema cache/.test(msg) ||
+    /could not find.*column/.test(msg) ||
+    /column .* does not exist/.test(msg)
+  )
+}
+
 async function tableExists(table: string) {
   const svc = getServiceClient()
   try {
     const { error } = await svc.from(table).select('*', { head: true }).limit(1)
-    if (error && (error.code === '42P01' || /does not exist/i.test(error.message))) return false
+    if (error && isMissingTableErr(error)) return false
     return true
   } catch { return false }
 }
+
 async function columnExists(table: string, col: string) {
   const svc = getServiceClient()
   try {
     const { error } = await svc.from(table).select(col, { head: true }).limit(1)
-    if (error && (error.code === '42703' || /column .* does not exist/i.test(error.message))) return false
+    if (error && isMissingColumnErr(error)) return false
+    // For other errors (RLS, etc.), assume column exists to avoid false negatives.
     return true
   } catch { return false }
 }
+
 async function resolveTable(cands: string[]) {
   for (const t of cands) if (await tableExists(t)) return t
   return null
@@ -52,9 +79,9 @@ export async function getDbShape(): Promise<Shape> {
 
   const orgTable = (await resolveTable(['organizations'])) || 'organizations'
   const membersTable =
-    (await resolveTable(['org_members', 'organization_members', 'memberships'])) || 'org_members'
+    (await resolveTable(['org_members','organization_members','memberships'])) || 'org_members'
   const outboxTable =
-    (await resolveTable(['whatsapp_outbox', 'outbox'])) || 'whatsapp_outbox'
+    (await resolveTable(['whatsapp_outbox','outbox'])) || 'whatsapp_outbox'
   const outboxVariant = outboxTable === 'whatsapp_outbox' ? 'whatsapp' : 'plain'
 
   const salesTable =
@@ -70,6 +97,7 @@ export async function getDbShape(): Promise<Shape> {
   const suppliersTable =
     (await resolveTable(['suppliers','org_suppliers','organization_suppliers'])) || 'suppliers'
 
+  // optional
   const invitesTable   = await resolveTable(['org_invites','organization_invites','invites'])
   const templatesTable = await resolveTable(['message_templates','templates'])
   const pOwnersTable   = await resolveTable(['platform_owners','owners_platform','platform_owner'])
@@ -80,7 +108,7 @@ export async function getDbShape(): Promise<Shape> {
       table: orgTable,
       cols: await cols(orgTable, [
         'id','created_by','name',
-        // extended org fields
+        // extended org fields (schema-adaptive)
         'industry_type','org_type','type',
         'country','state','phone',
         'default_language',
@@ -101,8 +129,7 @@ export async function getDbShape(): Promise<Shape> {
     sales: {
       table: salesTable,
       cols: await cols(salesTable, [
-        'product','sku','barcode',
-        'sold_qty','quantity','qty',
+        'product','sku','barcode','sold_qty','quantity','qty',
         'org_id','uploaded_by','created_by','batch_id','status'
       ]),
     },
@@ -126,28 +153,36 @@ export async function getDbShape(): Promise<Shape> {
     suppliers: {
       table: suppliersTable,
       cols: await cols(suppliersTable, [
-        'id','name','supplier_name',
-        'phone','phone_e164',
+        'id','name','supplier_name','phone','phone_e164',
         'preferred_language','language','lang',
-        'org_id','created_by','updated_by',
-        'created_at','updated_at','is_active'
+        'org_id','created_by','updated_by','created_at','updated_at','is_active'
       ]),
     },
   }
 
-  if (invitesTable)   shape.invites   = { table: invitesTable,   cols: await cols(invitesTable,   ['org_id','email','role','status','invited_by','user_id','created_at','accepted_at']) }
-  if (templatesTable) shape.templates = { table: templatesTable, cols: await cols(templatesTable, [
-    'id','name','key','slug','lang','language','scope','template_scope','org_id','text','body','content','linked_action','action','enabled','is_active','updated_at'
-  ])}
-  if (pOwnersTable)   shape.pOwners   = { table: pOwnersTable,   cols: await cols(pOwnersTable,   ['user_id','is_active']) }
-  if (pAdminsTable)   shape.pAdmins   = { table: pAdminsTable,   cols: await cols(pAdminsTable,   ['user_id','is_active']) }
+  if (invitesTable)
+    shape.invites = {
+      table: invitesTable,
+      cols: await cols(invitesTable, ['org_id','email','role','status','invited_by','user_id','created_at','accepted_at'])
+    }
+  if (templatesTable)
+    shape.templates = {
+      table: templatesTable,
+      cols: await cols(templatesTable, [
+        'id','name','key','slug','lang','language','scope','template_scope','org_id',
+        'text','body','content','linked_action','action','enabled','is_active','updated_at'
+      ])
+    }
+  if (pOwnersTable)
+    shape.pOwners = { table: pOwnersTable, cols: await cols(pOwnersTable, ['user_id','is_active']) }
+  if (pAdminsTable)
+    shape.pAdmins = { table: pAdminsTable, cols: await cols(pAdminsTable, ['user_id','is_active']) }
 
   cached = shape
   return shape
 }
 
-export function _clearDbShapeCache(){ cached = null }
+export function _clearDbShapeCache() { cached = null }
 
-/** Also expose a default export to silence any exotic TS resolver edge cases */
 const DbAdapter = { getDbShape, _clearDbShapeCache }
 export default DbAdapter
