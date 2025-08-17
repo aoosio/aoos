@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     .eq('org_id', org_id).single()
   if (chErr || !ch) return new Response('WhatsApp channel not found', { status: 400 })
 
-  const token = decryptToken(ch.token_encrypted!, KMS)
+  const token = decryptToken(ch.token_encrypted!)
   const phone_number_id = ch.phone_number_id!
 
   const final_text = `${body.trim()}${buildFactsBlock(facts)}\n${signature}`.slice(0, 3900)
