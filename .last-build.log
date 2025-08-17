@@ -1,0 +1,28 @@
+
+> aoos-ui@0.1.0 build /workspaces/aoos
+> next build
+
+  ▲ Next.js 14.2.4
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+Failed to compile.
+
+app/(app)/admin/messages/page.tsx
+You cannot have two parallel pages that resolve to the same path. Please check /(app)/admin/messages/page and /admin/messages/page. Refer to the route group docs for more information: https://nextjs.org/docs/app/building-your-application/routing/route-groups
+
+app/(app)/admin/page.tsx
+You cannot have two parallel pages that resolve to the same path. Please check /(app)/admin/page and /admin/page. Refer to the route group docs for more information: https://nextjs.org/docs/app/building-your-application/routing/route-groups
+
+app/(app)/audit/page.tsx
+You cannot have two parallel pages that resolve to the same path. Please check /(app)/audit/page and /audit/page. Refer to the route group docs for more information: https://nextjs.org/docs/app/building-your-application/routing/route-groups
+
+app/(app)/outbox/page.tsx
+You cannot have two parallel pages that resolve to the same path. Please check /(app)/outbox/page and /outbox/page. Refer to the route group docs for more information: https://nextjs.org/docs/app/building-your-application/routing/route-groups
+
+app/(app)/people/page.tsx
+You cannot have two parallel pages that resolve to the same path. Please check /(app)/people/page and /people/page. Refer to the route group docs for more information: https://nextjs.org/docs/app/building-your-application/routing/route-groups
+
+
+> Build failed because of webpack errors
+ ELIFECYCLE  Command failed with exit code 1.
