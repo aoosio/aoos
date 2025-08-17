@@ -1,43 +1,44 @@
-export const runtime = 'nodejs'
 // app/api/whatsapp/send/route.ts
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { sendWhatsAppText } from "@/lib/whatsapp";
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-export const dynamic = "force-dynamic";
-
-const BodySchema = z.object({
-  to: z.string().min(5, "Invalid recipient"),
-  body: z.string().min(1, "Message is required").max(4096, "Message too long"),
-});
+import { NextResponse } from 'next/server'
+import { getServiceClient, getUserClient } from '@/lib/supabase-server'
 
 export async function POST(req: Request) {
   try {
-    const json = await req.json().catch(() => ({}));
-    const parsed = BodySchema.safeParse(json);
+    const userClient = getUserClient()
+    const {
+      data: { user },
+    } = await userClient.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { ok: false, error: parsed.error.flatten() },
-        { status: 400 }
-      );
+    const { to, text, org_id } = await req.json()
+    if (!to || !text) {
+      return NextResponse.json({ error: 'to and text are required' }, { status: 400 })
     }
 
-    const { to, body } = parsed.data;
-    const result = await sendWhatsAppText(to, body);
+    const supa = getServiceClient()
 
-    if (!result.ok) {
-      return NextResponse.json(
-        { ok: false, error: result.error, status: result.status },
-        { status: result.status || 500 }
-      );
-    }
+    // Save to outbox (queue) even if WA not configured
+    const { data: row, error: insertErr } = await supa
+      .from('outbox')
+      .insert({
+        to_phone: to,
+        text,
+        org_id: org_id ?? null,
+        provider: 'whatsapp',
+        provider_status: 'QUEUED',
+        created_by: user.id,
+      })
+      .select('id')
+      .single()
+    if (insertErr) throw insertErr
 
-    return NextResponse.json({ ok: true, messageId: result.messageId });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: err?.message ?? "Unexpected error" },
-      { status: 500 }
-    );
+    // If you have WhatsApp credentials set, you can call Meta API here.
+    // For now we just queue it and return success.
+    return NextResponse.json({ ok: true, id: row.id })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || 'Failed to send' }, { status: 500 })
   }
 }

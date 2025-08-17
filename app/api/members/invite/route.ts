@@ -1,49 +1,57 @@
+// app/api/members/invite/route.ts
 export const runtime = 'nodejs'
-import { NextRequest } from 'next/server'
-import { cookies } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
+export const dynamic = 'force-dynamic'
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const SRK  = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { NextResponse } from 'next/server'
+import { getServiceClient, getUserClient } from '@/lib/supabase-server'
 
-export async function POST(req: NextRequest) {
-  const { email, org_id, role = 'po_manager' } = await req.json() as { email: string; org_id: string; role?: 'po_manager'|'owner' }
+export async function POST(req: Request) {
+  try {
+    const userClient = getUserClient()
+    const {
+      data: { user },
+    } = await userClient.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 
-  if (!email || !org_id) return new Response('email and org_id are required', { status: 400 })
+    const { email, org_id, role } = await req.json()
+    if (!email || !org_id) {
+      return NextResponse.json({ error: 'email and org_id are required' }, { status: 400 })
+    }
 
-  // user-scoped client (to verify caller is owner)
-  const token = cookies().get('sb-access-token')?.value
-  const userClient = createClient(URL, ANON, { global: { headers: { Authorization: `Bearer ${token ?? ''}` } } })
+    const supa = getServiceClient()
 
-  const { data: me } = await userClient.auth.getUser()
-  if (!me?.user) return new Response('Unauthorized', { status: 401 })
+    // 1) Send Supabase Auth invite
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const redirectTo = appUrl ? `${appUrl}/auth/callback` : undefined
+    const { data: invite, error: invErr } = await supa.auth.admin.inviteUserByEmail(email, { redirectTo })
+    if (invErr) throw invErr
 
-  const { data: mine, error: rolesErr } = await userClient
-    .from('org_members').select('role').eq('org_id', org_id).maybeSingle()
-  if (rolesErr) return new Response(rolesErr.message, { status: 400 })
-  if (!mine || mine.role !== 'owner') return new Response('Only owners can invite', { status: 403 })
+    // 2) Optionally pre-create membership (status = invited)
+    // If you have a 'status' column or invite table, adjust accordingly.
+    await supa
+      .from('organization_members')
+      .insert({
+        org_id,
+        user_id: invite.user?.id ?? null, // may be null until user accepts
+        email,
+        role: role || 'PO_MANAGER',
+        status: 'INVITED',
+        invited_by: user.id,
+      })
+      .select('org_id')
+      .maybeSingle()
 
-  // admin client to invite + insert membership
-  const admin = createClient(URL, SRK)
+    // 3) Audit
+    await supa.from('audit_log').insert({
+      actor_id: user.id,
+      action: 'MEMBER_INVITE',
+      entity: 'organization_members',
+      entity_id: org_id,
+      details: { email, role: role || 'PO_MANAGER' },
+    })
 
-  // try invite; if user already exists, fetch them
-  let userId: string | null = null
-  const res = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: `${req.nextUrl.origin}/login` })
-  if ('error' in res && res.error) {
-    // try to find existing user by listing (limited but OK here)
-    const listed = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
-    const u = listed?.data?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())
-    if (!u) return new Response(res.error.message, { status: 400 })
-    userId = u.id
-  } else {
-    userId = res.data.user.id
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || 'Failed to invite' }, { status: 500 })
   }
-
-  const { error: insErr } = await admin.from('org_members').insert({ org_id, user_id: userId, role, email })
-  if (insErr && !/duplicate key/i.test(insErr.message)) {
-    return new Response(insErr.message, { status: 400 })
-  }
-
-  return Response.json({ ok: true })
 }
