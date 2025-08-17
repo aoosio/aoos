@@ -1,25 +1,40 @@
+// lib/crypto.ts
 import crypto from 'crypto'
-const SALT = 'aoos-whatsapp-kdf-v1'
 
-export function encryptToken(plain: string, kmsKey: string) {
-  const key = crypto.scryptSync(kmsKey, SALT, 32)
-  const iv = crypto.randomBytes(12)
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
-  const ct = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])
-  const tag = cipher.getAuthTag()
-  return JSON.stringify({
-    alg: 'aes-256-gcm',
-    iv: iv.toString('base64'),
-    tag: tag.toString('base64'),
-    ct: ct.toString('base64'),
-  })
+function getKey(): Buffer {
+  const raw = process.env.WHATSAPP_KMS_KEY || process.env.KMS_KEY || ''
+  if (!raw) throw new Error('Missing WHATSAPP_KMS_KEY')
+  // Derive a 32-byte key from whatever was provided (stable)
+  return crypto.scryptSync(raw, 'aoos-whatsapp-kdf', 32)
 }
 
-export function decryptToken(payload: string, kmsKey: string) {
-  const parsed = JSON.parse(payload) as { iv: string; tag: string; ct: string }
-  const key = crypto.scryptSync(kmsKey, SALT, 32)
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(parsed.iv, 'base64'))
-  decipher.setAuthTag(Buffer.from(parsed.tag, 'base64'))
-  const pt = Buffer.concat([decipher.update(Buffer.from(parsed.ct, 'base64')), decipher.final()])
-  return pt.toString('utf8')
+export function encryptToken(plaintext: string): string {
+  const key = getKey()
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  // v1:iv:cipher:tag (all base64url)
+  const b64 = (b: Buffer) => b.toString('base64url')
+  return `v1:${b64(iv)}:${b64(enc)}:${b64(tag)}`
+}
+
+export function decryptToken(blob: string): string {
+  const [v, ivB64, dataB64, tagB64] = (blob || '').split(':')
+  if (v !== 'v1') throw new Error('Bad token format')
+  const key = getKey()
+  const iv = Buffer.from(ivB64, 'base64url')
+  const data = Buffer.from(dataB64, 'base64url')
+  const tag = Buffer.from(tagB64, 'base64url')
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAuthTag(tag)
+  const dec = Buffer.concat([decipher.update(data), decipher.final()])
+  return dec.toString('utf8')
+}
+
+export function maskToken(t?: string | null) {
+  if (!t) return { masked: null, hint: null }
+  const hint = t.slice(-4)
+  const masked = `••••••••••••••••${hint}`
+  return { masked, hint }
 }

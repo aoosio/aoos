@@ -1,72 +1,268 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { getSupabaseClient } from '@/lib/supabase-client'
 
-export default function Settings() {
-  // WhatsApp section
-  const [phoneNumberId, setPhoneNumberId] = useState('')
-  const [wabaId, setWabaId] = useState('')
-  const [token, setToken] = useState('')
-  const [waMsg, setWaMsg] = useState<string | null>(null)
+type OrgSettings = {
+  id?: string
+  name?: string | null
+  industry_type?: string | null
+  country?: string | null
+  state?: string | null
+  phone?: string | null
+  default_language?: 'en' | 'ar' | null
+  ssi_days?: number | null
+  sla_target_days?: number | null
+  default_dial_code?: string | null
+}
+
+type WhatsAppSettings = {
+  phone_number_id?: string | null
+  waba_id?: string | null
+  token_masked?: string | null
+  token_hint?: string | null
+  is_connected?: boolean
+}
+
+export default function SettingsPage() {
+  // tabs
+  const [tab, setTab] = useState<'account'|'org'|'whatsapp'>('account')
+
+  // account (password)
+  const [newPass, setNewPass] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [accMsg, setAccMsg] = useState<string | null>(null)
+  const [accBusy, setAccBusy] = useState(false)
+
+  // org
+  const [org, setOrg] = useState<OrgSettings | null>(null)
+  const [orgBusy, setOrgBusy] = useState(false)
+  const [orgMsg, setOrgMsg] = useState<string | null>(null)
+
+  // whatsapp
+  const [wa, setWa] = useState<WhatsAppSettings | null>(null)
   const [waBusy, setWaBusy] = useState(false)
+  const [waMsg, setWaMsg] = useState<string | null>(null)
+  const [waToken, setWaToken] = useState('') // plaintext only for new saves
+
+  // industry presets (confirmed in requirements)
+  const INDUSTRY: { group: string; items: { value: string; label: string }[] }[] = [
+    {
+      group: 'FMCG',
+      items: [
+        { value: 'FMCG_SINGLE', label: 'FMCG — Single Market' },
+        { value: 'FMCG_CHAIN', label: 'FMCG — Chain' },
+        { value: 'FMCG_WHOLESALER', label: 'FMCG — Wholesaler' },
+      ],
+    },
+    {
+      group: 'Pharma',
+      items: [
+        { value: 'PHARMA_PHARMACY', label: 'Pharma — Pharmacy' },
+        { value: 'PHARMA_DRUGSTORE', label: 'Pharma — Drugstore' },
+        { value: 'PHARMA_DISTRIBUTOR', label: 'Pharma — Distributor' },
+      ],
+    },
+    {
+      group: 'Other',
+      items: [
+        { value: 'OTHER', label: 'Other (specify in name/notes)' },
+      ],
+    },
+  ]
+
+  async function load() {
+    const r = await fetch('/api/settings/get', { cache: 'no-store' })
+    const j = await r.json()
+    if (!r.ok) { setOrg(null); setWa(null); setOrgMsg(j.error || 'Failed to load settings'); return }
+    setOrg(j.org || {})
+    setWa(j.whatsapp || {})
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function saveOrg() {
+    setOrgBusy(true); setOrgMsg(null)
+    try {
+      const payload = { org: org }
+      const r = await fetch('/api/settings/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error || 'Failed to save')
+      setOrgMsg('Saved.')
+      await load()
+    } catch (e: any) {
+      setOrgMsg(e.message)
+    } finally { setOrgBusy(false) }
+  }
 
   async function saveWA() {
     setWaBusy(true); setWaMsg(null)
-    const res = await fetch('/api/settings/whatsapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone_number_id: phoneNumberId, waba_id: wabaId, access_token: token })
-    })
-    const j = await res.json().catch(()=>({}))
-    if (!res.ok) setWaMsg(j.error || 'Failed to save')
-    else setWaMsg('Saved.')
-    setWaBusy(false)
+    try {
+      const payload = { whatsapp: {
+        phone_number_id: wa?.phone_number_id || '',
+        waba_id: wa?.waba_id || '',
+        access_token: waToken || undefined, // only send if the user typed one
+      }}
+      const r = await fetch('/api/settings/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error || 'Failed to save')
+      setWaMsg('Saved.')
+      setWaToken('')
+      await load()
+    } catch (e: any) {
+      setWaMsg(e.message)
+    } finally { setWaBusy(false) }
   }
 
-  // Password section
-  const [cur, setCur] = useState('')
-  const [nw, setNw] = useState('')
-  const [nw2, setNw2] = useState('')
-  const [pwMsg, setPwMsg] = useState<string | null>(null)
-  const [pwBusy, setPwBusy] = useState(false)
-
-  async function changePw() {
-    if (!nw || nw.length < 8) { setPwMsg('Password must be at least 8 characters'); return }
-    if (nw !== nw2) { setPwMsg('Passwords do not match'); return }
-    setPwBusy(true); setPwMsg(null)
-    const res = await fetch('/api/account/password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ current_password: cur || undefined, new_password: nw })
-    })
-    const j = await res.json().catch(()=>({}))
-    if (!res.ok) setPwMsg(j.error || 'Failed to change password')
-    else { setPwMsg('Password updated.'); setCur(''); setNw(''); setNw2('') }
-    setPwBusy(false)
+  async function testWA() {
+    setWaBusy(true); setWaMsg(null)
+    try {
+      const r = await fetch('/api/settings/whatsapp/test', { method: 'POST' })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error || 'Failed to test')
+      if (j.ok) setWaMsg('Connection OK'); else setWaMsg(`Graph error: ${j.status} ${j.error || ''}`)
+      await load()
+    } catch (e: any) {
+      setWaMsg(e.message)
+    } finally { setWaBusy(false) }
   }
+
+  async function changePassword() {
+    setAccMsg(null)
+    if (!newPass || newPass.length < 8) { setAccMsg('Password must be at least 8 characters.'); return }
+    if (newPass !== confirm) { setAccMsg('Passwords do not match.'); return }
+    setAccBusy(true)
+    try {
+      const supabase = await getSupabaseClient()
+      const { error } = await supabase.auth.updateUser({ password: newPass })
+      if (error) throw error
+      setAccMsg('Password updated.')
+      setNewPass(''); setConfirm('')
+    } catch (e: any) {
+      setAccMsg(e.message || 'Failed to update password')
+    } finally { setAccBusy(false) }
+  }
+
+  const lang = (org?.default_language || 'en') as 'en'|'ar'
 
   return (
     <main className="space-y-8">
-      <section className="rounded border p-4 shadow-soft max-w-xl">
-        <h2 className="font-semibold">WhatsApp</h2>
-        <div className="mt-3 space-y-3">
-          <input className="w-full rounded border px-3 py-2" placeholder="Phone Number ID" value={phoneNumberId} onChange={e=>setPhoneNumberId(e.target.value)} />
-          <input className="w-full rounded border px-3 py-2" placeholder="WABA ID" value={wabaId} onChange={e=>setWabaId(e.target.value)} />
-          <input className="w-full rounded border px-3 py-2" placeholder="Access Token" value={token} onChange={e=>setToken(e.target.value)} />
-          <button onClick={saveWA} disabled={waBusy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">{waBusy ? 'Saving…' : 'Save settings'}</button>
-          {waMsg && <p className="text-sm">{waMsg}</p>}
-        </div>
-      </section>
+      <div className="flex gap-2">
+        <button onClick={()=>setTab('account')} className={`rounded px-3 py-1 text-sm border ${tab==='account'?'bg-brand/10 border-brand':'border-neutral-300'}`}>Account</button>
+        <button onClick={()=>setTab('org')} className={`rounded px-3 py-1 text-sm border ${tab==='org'?'bg-brand/10 border-brand':'border-neutral-300'}`}>Organization</button>
+        <button onClick={()=>setTab('whatsapp')} className={`rounded px-3 py-1 text-sm border ${tab==='whatsapp'?'bg-brand/10 border-brand':'border-neutral-300'}`}>WhatsApp</button>
+      </div>
 
-      <section className="rounded border p-4 shadow-soft max-w-xl">
-        <h2 className="font-semibold">Change password</h2>
-        <div className="mt-3 space-y-3">
-          <input type="password" className="w-full rounded border px-3 py-2" placeholder="Current password (optional)" value={cur} onChange={e=>setCur(e.target.value)} />
-          <input type="password" className="w-full rounded border px-3 py-2" placeholder="New password (min 8 chars)" value={nw} onChange={e=>setNw(e.target.value)} />
-          <input type="password" className="w-full rounded border px-3 py-2" placeholder="Confirm new password" value={nw2} onChange={e=>setNw2(e.target.value)} />
-          {pwMsg && <p className="text-sm text-red-600">{pwMsg}</p>}
-          <button onClick={changePw} disabled={pwBusy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">{pwBusy ? 'Saving…' : 'Update password'}</button>
-        </div>
-      </section>
+      {tab==='account' && (
+        <section className="rounded border p-4 shadow-soft max-w-xl">
+          <h2 className="mb-2 font-semibold">Change password</h2>
+          <div className="grid gap-3">
+            <input type="password" className="rounded border px-3 py-2" placeholder="New password (min 8 chars)" value={newPass} onChange={e=>setNewPass(e.target.value)} />
+            <input type="password" className="rounded border px-3 py-2" placeholder="Confirm password" value={confirm} onChange={e=>setConfirm(e.target.value)} />
+            {accMsg && <p className="text-sm">{accMsg}</p>}
+            <button onClick={changePassword} disabled={accBusy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">{accBusy?'Saving…':'Update password'}</button>
+          </div>
+        </section>
+      )}
+
+      {tab==='org' && (
+        <section className="rounded border p-4 shadow-soft">
+          <h2 className="mb-2 font-semibold">Organization settings</h2>
+          {!org && <p className="text-sm">No organization found. Create one in onboarding.</p>}
+          {org && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="text-sm">Name
+                <input className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.name || ''} onChange={e=>setOrg(o=>({ ...(o||{}), name:e.target.value }))} />
+              </label>
+
+              <label className="text-sm">Default language
+                <select className="mt-1 w-full rounded border px-3 py-2"
+                  value={lang} onChange={e=>setOrg(o=>({ ...(o||{}), default_language: e.target.value as any }))}>
+                  <option value="en">English</option>
+                  <option value="ar">العربية</option>
+                </select>
+              </label>
+
+              <label className="text-sm md:col-span-2">Industry / Type
+                <select className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.industry_type || ''}
+                  onChange={e=>setOrg(o=>({ ...(o||{}), industry_type: e.target.value }))}>
+                  <option value="">Select…</option>
+                  {INDUSTRY.map(g => (
+                    <optgroup key={g.group} label={g.group}>
+                      {g.items.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm">Country
+                <input className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.country || ''} onChange={e=>setOrg(o=>({ ...(o||{}), country:e.target.value }))} />
+              </label>
+
+              <label className="text-sm">State / Province
+                <input className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.state || ''} onChange={e=>setOrg(o=>({ ...(o||{}), state:e.target.value }))} />
+              </label>
+
+              <label className="text-sm">Phone
+                <input className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.phone || ''} onChange={e=>setOrg(o=>({ ...(o||{}), phone:e.target.value }))} />
+              </label>
+
+              <label className="text-sm">Default dial code
+                <input className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.default_dial_code || ''} onChange={e=>setOrg(o=>({ ...(o||{}), default_dial_code:e.target.value }))} />
+              </label>
+
+              <label className="text-sm">Safety stock (days)
+                <input type="number" className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.ssi_days ?? 0} onChange={e=>setOrg(o=>({ ...(o||{}), ssi_days:Number(e.target.value) }))} />
+              </label>
+
+              <label className="text-sm">SLA target (days)
+                <input type="number" className="mt-1 w-full rounded border px-3 py-2"
+                  value={org.sla_target_days ?? 0} onChange={e=>setOrg(o=>({ ...(o||{}), sla_target_days:Number(e.target.value) }))} />
+              </label>
+
+              {orgMsg && <p className="text-sm md:col-span-2">{orgMsg}</p>}
+              <div className="md:col-span-2">
+                <button onClick={saveOrg} disabled={orgBusy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">
+                  {orgBusy?'Saving…':'Save settings'}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab==='whatsapp' && (
+        <section className="rounded border p-4 shadow-soft">
+          <h2 className="mb-2 font-semibold">WhatsApp Business</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-sm">Phone Number ID
+              <input className="mt-1 w-full rounded border px-3 py-2" value={wa?.phone_number_id || ''} onChange={e=>setWa(w=>({ ...(w||{}), phone_number_id:e.target.value }))} />
+            </label>
+            <label className="text-sm">WABA ID
+              <input className="mt-1 w-full rounded border px-3 py-2" value={wa?.waba_id || ''} onChange={e=>setWa(w=>({ ...(w||{}), waba_id:e.target.value }))} />
+            </label>
+
+            <label className="text-sm md:col-span-2">Access token (paste only when updating)
+              <input className="mt-1 w-full rounded border px-3 py-2" placeholder={wa?.token_masked || 'Enter token'} value={waToken} onChange={e=>setWaToken(e.target.value)} />
+              {wa?.token_hint && <div className="mt-1 text-xs text-neutral-500">Hint: ends with {wa.token_hint}</div>}
+            </label>
+
+            <div className="md:col-span-2 flex flex-wrap gap-2">
+              <button onClick={saveWA} disabled={waBusy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">{waBusy?'Saving…':'Save'}</button>
+              <button onClick={testWA} disabled={waBusy} className="rounded border px-3 py-2">{waBusy?'Testing…':'Test connection'}</button>
+              {wa?.is_connected && <span className="self-center rounded bg-green-100 px-2 py-1 text-xs text-green-800">Connected</span>}
+            </div>
+
+            {waMsg && <p className="text-sm md:col-span-2">{waMsg}</p>}
+          </div>
+        </section>
+      )}
     </main>
   )
 }
