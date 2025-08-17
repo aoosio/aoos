@@ -3,7 +3,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getServiceClient, getUserId } from '@/lib/supabase-server'
+import { getServiceClient, getUserId, ensureOrgContext } from '@/lib/supabase-server'
 import { getDbShape } from '@/lib/db-adapter'
 import { parseCSV, pick } from '@/lib/csv'
 
@@ -22,16 +22,10 @@ export async function POST(req: Request) {
     const svc = getServiceClient()
     const shape = await getDbShape()
 
-    // Resolve caller org
-    const { data: mem } = await svc
-      .from(shape.members.table)
-      .select('org_id')
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle()
-    const org_id = mem?.org_id ?? null
+    // ✅ Resolve/ensure org context (auto-link owner to their org if needed)
+    const org_id = await ensureOrgContext(userId)
     if (shape.sales.cols.org_id && !org_id) {
-      return NextResponse.json({ error: 'No organization' }, { status: 400 })
+      return NextResponse.json({ error: 'No organization. Create or join one first.' }, { status: 400 })
     }
 
     // Column indices (with synonyms)
@@ -39,13 +33,14 @@ export async function POST(req: Request) {
     const soldIdx = pick(headers, ['sold_qty','sales','sold','quantity','qty','qty_sold'])
     if (prodIdx < 0 || soldIdx < 0) {
       return NextResponse.json({
-        error: `CSV must include product and sold quantity columns. Looked for any of:
+        error:
+`CSV must include product and sold quantity columns. Looked for any of:
 product: product, sku, barcode, name, item, code
 sold: sold_qty, sales, sold, quantity, qty, qty_sold`
       }, { status: 400 })
     }
 
-    // Optional: batch id if table has it
+    // Optional: batch id if table supports it
     let batch_id: string | null = null
     if (shape.sales.cols.batch_id) {
       const { data } = await svc.rpc('gen_random_uuid' as any)

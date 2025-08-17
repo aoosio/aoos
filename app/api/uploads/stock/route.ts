@@ -3,7 +3,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getServiceClient, getUserId } from '@/lib/supabase-server'
+import { getServiceClient, getUserId, ensureOrgContext } from '@/lib/supabase-server'
 import { getDbShape } from '@/lib/db-adapter'
 import { parseCSV, pick } from '@/lib/csv'
 
@@ -22,34 +22,29 @@ export async function POST(req: Request) {
     const svc = getServiceClient()
     const shape = await getDbShape()
 
-    // Resolve caller org
-    const { data: mem } = await svc
-      .from(shape.members.table)
-      .select('org_id')
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle()
-    const org_id = mem?.org_id ?? null
+    // ✅ Resolve/ensure org context (auto-link owner to their org if needed)
+    const org_id = await ensureOrgContext(userId)
     if (shape.stock.cols.org_id && !org_id) {
-      return NextResponse.json({ error: 'No organization' }, { status: 400 })
+      return NextResponse.json({ error: 'No organization. Create or join one first.' }, { status: 400 })
     }
 
     // Column indices (with synonyms)
-    const prodIdx = pick(headers, ['product','sku','barcode','name','item','code'])
-    const qtyIdx  = pick(headers, ['qty','quantity','stock_qty'])
-    const expiryIdx = pick(headers, ['expiry_date','expiry','exp_date','expire'])
-    const distIdx   = pick(headers, ['distributor','supplier','vendor'])
-    const phoneIdx  = pick(headers, ['distributor_phone','supplier_phone','vendor_phone','phone','phone_e164'])
+    const prodIdx  = pick(headers, ['product','sku','barcode','name','item','code'])
+    const qtyIdx   = pick(headers, ['qty','quantity','stock_qty'])
+    const expiryIdx= pick(headers, ['expiry_date','expiry','exp_date','expire'])
+    const distIdx  = pick(headers, ['distributor','supplier','vendor'])
+    const phoneIdx = pick(headers, ['distributor_phone','supplier_phone','vendor_phone','phone','phone_e164'])
 
     if (prodIdx < 0 || qtyIdx < 0) {
       return NextResponse.json({
-        error: `CSV must include product and qty columns. Looked for any of:
+        error:
+`CSV must include product and qty columns. Looked for any of:
 product: product, sku, barcode, name, item, code
 qty: qty, quantity, stock_qty`
       }, { status: 400 })
     }
 
-    // Optional: batch id if table requires it
+    // Optional: batch id if table supports it
     let batch_id: string | null = null
     if (shape.stock.cols.batch_id) {
       const { data } = await svc.rpc('gen_random_uuid' as any)
