@@ -1,54 +1,47 @@
-// app/api/members/invite/route.ts
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getServiceClient, getUserClient } from '@/lib/supabase-server'
+import { getServiceClient, getUserId } from '@/lib/supabase-server'
+import { getDbShape } from '@/lib/db-adapter'
 
 export async function POST(req: Request) {
   try {
-    const userClient = getUserClient()
-    const {
-      data: { user },
-    } = await userClient.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
+    const userId = await getUserId()
+    if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 
-    const { email, org_id, role } = await req.json()
-    if (!email || !org_id) {
-      return NextResponse.json({ error: 'email and org_id are required' }, { status: 400 })
-    }
+    const { email, role } = await req.json()
+    if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 })
 
-    const supa = getServiceClient()
+    const svc = getServiceClient()
+    const shape = await getDbShape()
 
-    // 1) Send Supabase Auth invite
+    // Figure user's org (first active membership)
+    const { data: mem } = await svc
+      .from(shape.members.table)
+      .select('org_id')
+      .eq('user_id', userId)
+      .order('org_id', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    const org_id = mem?.org_id
+    if (!org_id) return NextResponse.json({ error: 'No organization' }, { status: 400 })
+
+    // Send Supabase invite
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
     const redirectTo = appUrl ? `${appUrl}/auth/callback` : undefined
-    const { data: invite, error: invErr } = await supa.auth.admin.inviteUserByEmail(email, { redirectTo })
+    const { data: invited, error: invErr } = await svc.auth.admin.inviteUserByEmail(email, { redirectTo })
     if (invErr) throw invErr
 
-    // 2) Optionally pre-create membership (status = invited)
-    // If you have a 'status' column or invite table, adjust accordingly.
-    await supa
-      .from('organization_members')
-      .insert({
-        org_id,
-        user_id: invite.user?.id ?? null, // may be null until user accepts
-        email,
-        role: role || 'PO_MANAGER',
-        status: 'INVITED',
-        invited_by: user.id,
-      })
-      .select('org_id')
-      .maybeSingle()
+    // Record membership (pending)
+    const m: any = { org_id }
+    if (shape.members.cols.user_id) m.user_id = invited.user?.id ?? null
+    if (shape.members.cols.email) m.email = email
+    if (shape.members.cols.role) m.role = role || 'PO_MANAGER'
+    if (shape.members.cols.is_active) m.is_active = false
+    if (shape.members.cols.status) m.status = 'INVITED'
 
-    // 3) Audit
-    await supa.from('audit_log').insert({
-      actor_id: user.id,
-      action: 'MEMBER_INVITE',
-      entity: 'organization_members',
-      entity_id: org_id,
-      details: { email, role: role || 'PO_MANAGER' },
-    })
+    await svc.from(shape.members.table).insert(m)
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
