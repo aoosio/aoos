@@ -1,13 +1,15 @@
-// tailwind.config.ts
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
-  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  content: [
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
   theme: {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#12B886', // primary
+          DEFAULT: '#12B886',
           50: '#E7F8F1',
           100: '#D1F1E5',
           200: '#A4E3CB',
