@@ -1,7 +1,7 @@
 // lib/db-adapter.ts
 import { getServiceClient } from './supabase-server'
 
-/** Force module mode for TS and also export default to avoid any resolver edge cases. */
+/** Force module mode for TS; keep a default export too to avoid resolver edge cases. */
 export {}
 
 export type TableCols = Record<string, boolean>
@@ -59,7 +59,7 @@ async function columnExists(table: string, col: string) {
   try {
     const { error } = await svc.from(table).select(col, { head: true }).limit(1)
     if (error && isMissingColumnErr(error)) return false
-    // For other errors (RLS, etc.), assume column exists to avoid false negatives.
+    // For other errors (RLS, network…), assume column exists to avoid false negatives.
     return true
   } catch { return false }
 }
@@ -77,12 +77,14 @@ async function cols(table: string, names: string[]): Promise<TableCols> {
 export async function getDbShape(): Promise<Shape> {
   if (cached) return cached
 
-  const orgTable = (await resolveTable(['organizations'])) || 'organizations'
+  const orgTable =
+    (await resolveTable(['organizations'])) || 'organizations'
   const membersTable =
     (await resolveTable(['org_members','organization_members','memberships'])) || 'org_members'
   const outboxTable =
     (await resolveTable(['whatsapp_outbox','outbox'])) || 'whatsapp_outbox'
-  const outboxVariant = outboxTable === 'whatsapp_outbox' ? 'whatsapp' : 'plain'
+  const outboxVariant: 'whatsapp' | 'plain' =
+    outboxTable === 'whatsapp_outbox' ? 'whatsapp' : 'plain'
 
   const salesTable =
     (await resolveTable([
@@ -108,8 +110,9 @@ export async function getDbShape(): Promise<Shape> {
       table: orgTable,
       cols: await cols(orgTable, [
         'id','created_by','name',
-        // extended org fields (schema-adaptive)
+        // schema-adaptive fields — support both combined and split types
         'industry_type','org_type','type',
+        'org_type_main','org_type_sub',
         'country','state','phone',
         'default_language',
         'ssi_days','sla_target_days','default_dial_code',
@@ -117,7 +120,9 @@ export async function getDbShape(): Promise<Shape> {
     },
     members: {
       table: membersTable,
-      cols: await cols(membersTable, ['org_id','user_id','role','is_active','status','email','created_at']),
+      cols: await cols(membersTable, [
+        'org_id','user_id','role','is_active','status','email','created_at'
+      ]),
     },
     outbox: {
       table: outboxTable,
@@ -129,7 +134,8 @@ export async function getDbShape(): Promise<Shape> {
     sales: {
       table: salesTable,
       cols: await cols(salesTable, [
-        'product','sku','barcode','sold_qty','quantity','qty',
+        'product','sku','barcode',
+        'sold_qty','quantity','qty',
         'org_id','uploaded_by','created_by','batch_id','status'
       ]),
     },
@@ -147,36 +153,45 @@ export async function getDbShape(): Promise<Shape> {
     waChannel: {
       table: waChannelTable,
       cols: await cols(waChannelTable, [
-        'org_id','phone_number_id','waba_id','token_encrypted','token_masked','token_hint','is_connected'
+        'org_id','phone_number_id','waba_id',
+        'token_encrypted','token_masked','token_hint','is_connected'
       ]),
     },
     suppliers: {
       table: suppliersTable,
       cols: await cols(suppliersTable, [
-        'id','name','supplier_name','phone','phone_e164',
+        'id','name','supplier_name',
+        'phone','phone_e164',
         'preferred_language','language','lang',
-        'org_id','created_by','updated_by','created_at','updated_at','is_active'
+        'org_id','created_by','updated_by',
+        'created_at','updated_at','is_active'
       ]),
     },
   }
 
-  if (invitesTable)
+  if (invitesTable) {
     shape.invites = {
       table: invitesTable,
-      cols: await cols(invitesTable, ['org_id','email','role','status','invited_by','user_id','created_at','accepted_at'])
+      cols: await cols(invitesTable, [
+        'org_id','email','role','status','invited_by','user_id','created_at','accepted_at'
+      ]),
     }
-  if (templatesTable)
+  }
+  if (templatesTable) {
     shape.templates = {
       table: templatesTable,
       cols: await cols(templatesTable, [
-        'id','name','key','slug','lang','language','scope','template_scope','org_id',
-        'text','body','content','linked_action','action','enabled','is_active','updated_at'
-      ])
+        'id','name','key','slug',
+        'lang','language',
+        'scope','template_scope','org_id',
+        'text','body','content',
+        'linked_action','action',
+        'enabled','is_active','updated_at'
+      ]),
     }
-  if (pOwnersTable)
-    shape.pOwners = { table: pOwnersTable, cols: await cols(pOwnersTable, ['user_id','is_active']) }
-  if (pAdminsTable)
-    shape.pAdmins = { table: pAdminsTable, cols: await cols(pAdminsTable, ['user_id','is_active']) }
+  }
+  if (pOwnersTable) shape.pOwners = { table: pOwnersTable, cols: await cols(pOwnersTable, ['user_id','is_active']) }
+  if (pAdminsTable) shape.pAdmins = { table: pAdminsTable, cols: await cols(pAdminsTable, ['user_id','is_active']) }
 
   cached = shape
   return shape
