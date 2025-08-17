@@ -4,6 +4,8 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL
+
 export default function SignUpPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -14,10 +16,11 @@ export default function SignUpPage() {
     setBusy(true); setMsg(null)
     try {
       const supabase = createClientComponentClient()
+      const redirectTo = `${APP_URL || location.origin}/auth/callback`
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${location.origin}/auth/callback` },
+        options: { emailRedirectTo: redirectTo },
       })
       if (error) throw error
       setMsg('Check your email to confirm your account.')
@@ -36,6 +39,9 @@ export default function SignUpPage() {
         <button onClick={signUp} disabled={busy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">
           {busy ? 'Creating…' : 'Sign up'}
         </button>
+        <p className="mt-2 text-sm">
+          Already have an account? <a href="/auth/sign-in" className="underline">Sign in</a>
+        </p>
       </div>
     </main>
   )
