@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getSupabaseClient } from '@/lib/supabase-client'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL
-
 export default function SignInForm() {
   const qp = useSearchParams()
   const [email, setEmail] = useState(qp.get('email') || '')
@@ -29,7 +27,8 @@ export default function SignInForm() {
     setBusy(true); setMsg(null)
     try {
       const supabase = await getSupabaseClient()
-      const redirectTo = `${APP_URL || location.origin}/auth/callback`
+      // ALWAYS use the current origin so Preview deploys work
+      const redirectTo = `${window.location.origin}/auth/callback`
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo },

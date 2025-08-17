@@ -1,16 +1,21 @@
+// app/auth/callback/route.ts
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 
 export async function GET(req: Request) {
-  const { searchParams, origin } = new URL(req.url)
-  const code = searchParams.get('code')
+  const url = new URL(req.url)
+  const code = url.searchParams.get('code')
 
   if (code) {
     const supabase = createRouteHandlerClient({ cookies })
+    // sets Supabase session cookies for this domain
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // After confirming email/magic link → send to onboarding (or /home)
-  return NextResponse.redirect(`${origin}/onboarding`)
+  // after session is set, go to onboarding (middleware will allow it)
+  return NextResponse.redirect(`${url.origin}/onboarding`)
 }
