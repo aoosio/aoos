@@ -1,20 +1,27 @@
-// app/auth/callback/route.ts
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+'use client'
+import { useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
-export async function GET(req: Request) {
-  const url = new URL(req.url)
-  const code = url.searchParams.get('code')
-  const next = url.searchParams.get('next') || '/onboarding'
+export default function AuthCallback() {
+  const router = useRouter()
+  const sp = useSearchParams()
 
-  if (code) {
-    const supabase = createRouteHandlerClient({ cookies })
-    await supabase.auth.exchangeCodeForSession(code)
-  }
+  useEffect(() => {
+    (async () => {
+      const code = sp.get('code')
+      if (code) {
+        // v2 signature in your install expects a string
+        await supabase.auth.exchangeCodeForSession(code)
+      }
+      router.replace('/home')
+    })()
+  }, [router, sp])
 
-  return NextResponse.redirect(`${url.origin}${next}`)
+  return null
 }

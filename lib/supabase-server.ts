@@ -1,10 +1,10 @@
 // lib/supabase-server.ts
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createRouteHandlerClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { getDbShape } from './db-adapter'
 
-/** Service client (bypasses RLS). Use ONLY in server routes. */
+/** Service client (bypasses RLS). Use ONLY in server routes/tasks that must bypass RLS. */
 export function getServiceClient() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const key =
@@ -15,23 +15,29 @@ export function getServiceClient() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
-/** Cookie-bound user client to read current user within routes. */
+/** Cookie-bound user client for Route Handlers (RLS enforced). */
 export function getUserClient() {
   return createRouteHandlerClient({ cookies })
 }
 
+/** Cookie-bound user client for Server Components/Actions (RLS enforced). */
+export function getServerUserClient() {
+  return createServerComponentClient({ cookies })
+}
+
+/** Current user id (or null) using user client. */
 export async function getUserId(): Promise<string | null> {
   const uc = getUserClient()
   const { data } = await uc.auth.getUser()
   return data?.user?.id ?? null
 }
 
-/** Attach current user to an org (if one was created_by them), or return org_id if already a member. */
+/** Attach current user to an org they created (OWNER) or return existing org_id membership. */
 export async function ensureOrgContext(userId: string): Promise<string | null> {
   const svc = getServiceClient()
   const shape = await getDbShape()
 
-  // 1) Already a member?
+  // Already a member?
   const { data: mem } = await svc
     .from(shape.members.table)
     .select('org_id')
@@ -41,7 +47,7 @@ export async function ensureOrgContext(userId: string): Promise<string | null> {
     .maybeSingle()
   if (mem?.org_id) return mem.org_id
 
-  // 2) If the orgs table tracks creator, auto-link as OWNER
+  // If orgs has created_by, auto-link as OWNER
   if (shape.orgs.cols.created_by) {
     const { data: org } = await svc
       .from(shape.orgs.table)
@@ -61,7 +67,6 @@ export async function ensureOrgContext(userId: string): Promise<string | null> {
     }
   }
 
-  // 3) No org yet
   return null
 }
 
@@ -74,13 +79,23 @@ export async function getRoles(userId: string) {
   let org_role: string | null = null
 
   if (shape.pOwners) {
-    const { data } = await svc.from(shape.pOwners.table).select('user_id, is_active').eq('user_id', userId).maybeSingle()
+    const { data } = await svc
+      .from(shape.pOwners.table)
+      .select('user_id, is_active')
+      .eq('user_id', userId)
+      .maybeSingle()
     is_platform_owner = !!data && (data as any).is_active !== false
   }
+
   if (shape.pAdmins) {
-    const { data } = await svc.from(shape.pAdmins.table).select('user_id, is_active').eq('user_id', userId).maybeSingle()
+    const { data } = await svc
+      .from(shape.pAdmins.table)
+      .select('user_id, is_active')
+      .eq('user_id', userId)
+      .maybeSingle()
     is_platform_admin = !!data && (data as any).is_active !== false
   }
+
   const { data: m } = await svc
     .from(shape.members.table)
     .select('role')
