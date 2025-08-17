@@ -9,13 +9,12 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
+  const next = url.searchParams.get('next') || '/onboarding'
 
   if (code) {
     const supabase = createRouteHandlerClient({ cookies })
-    // sets Supabase session cookies for this domain
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // after session is set, go to onboarding (middleware will allow it)
-  return NextResponse.redirect(`${url.origin}/onboarding`)
+  return NextResponse.redirect(`${url.origin}${next}`)
 }

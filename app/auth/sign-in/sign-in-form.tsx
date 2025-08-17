@@ -27,7 +27,6 @@ export default function SignInForm() {
     setBusy(true); setMsg(null)
     try {
       const supabase = await getSupabaseClient()
-      // ALWAYS use the current origin so Preview deploys work
       const redirectTo = `${window.location.origin}/auth/callback`
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -48,6 +47,9 @@ export default function SignInForm() {
       <div className="flex gap-2">
         <button type="button" onClick={signInPassword} disabled={busy} className="rounded bg-brand px-3 py-2 text-white disabled:opacity-50">Sign in</button>
         <button type="button" onClick={sendMagic} disabled={busy} className="rounded border px-3 py-2 disabled:opacity-50">Magic link</button>
+      </div>
+      <div className="mt-2 text-sm">
+        <a href="/auth/forgot" className="underline">Forgot password?</a>
       </div>
       <p className="mt-2 text-sm">
         New here? <a href="/auth/sign-up" className="underline">Create an account</a>

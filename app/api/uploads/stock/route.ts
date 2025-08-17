@@ -1,63 +1,118 @@
+// app/api/uploads/stock/route.ts
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getServiceClient, getUserId } from '@/lib/supabase-server'
 import { getDbShape } from '@/lib/db-adapter'
+import { parseCSV, pick } from '@/lib/csv'
 
 export async function POST(req: Request) {
   try {
     const userId = await getUserId()
     if (!userId) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 
+    const form = await req.formData()
+    const file = form.get('file') as File | null
+    if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 })
+    const text = await file.text()
+    const { headers, rows } = parseCSV(text)
+    if (!headers.length) return NextResponse.json({ error: 'Empty CSV' }, { status: 400 })
+
     const svc = getServiceClient()
     const shape = await getDbShape()
 
-    const { data: myMem } = await svc
+    // Resolve caller org
+    const { data: mem } = await svc
       .from(shape.members.table)
       .select('org_id')
       .eq('user_id', userId)
       .limit(1)
       .maybeSingle()
-    const org_id = myMem?.org_id
-    if (!org_id) return NextResponse.json({ error: 'No organization' }, { status: 400 })
-
-    const form = await req.formData()
-    const file = form.get('file') as File | null
-    if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 })
-
-    const text = await file.text()
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-    const [header, ...rows] = lines
-    const cols = header.split(',').map(s => s.trim().toLowerCase())
-    const get = (n: string) => cols.indexOf(n)
-
-    const pi = get('product')
-    const qi = get('qty')
-    if (pi === -1 || qi === -1) {
-      return NextResponse.json({ error: 'CSV must include product,qty' }, { status: 400 })
+    const org_id = mem?.org_id ?? null
+    if (shape.stock.cols.org_id && !org_id) {
+      return NextResponse.json({ error: 'No organization' }, { status: 400 })
     }
-    const ei = get('expiry_date')
-    const di = get('distributor')
-    const dpi = get('distributor_phone')
 
-    const payload = rows.slice(0, 5000).map(r => {
-      const c = r.split(',')
-      const rec: any = { product: c[pi]?.trim() || '', qty: Number(c[qi] ?? 0) }
-      if (ei >= 0 && c[ei]) rec.expiry_date = c[ei]
-      if (di >= 0) rec.distributor = c[di] || null
-      if (dpi >= 0) rec.distributor_phone = c[dpi] || null
-      if (shape.stock.cols.org_id) rec.org_id = org_id
+    // Column indices (with synonyms)
+    const prodIdx = pick(headers, ['product','sku','barcode','name','item','code'])
+    const qtyIdx  = pick(headers, ['qty','quantity','stock_qty'])
+    const expiryIdx = pick(headers, ['expiry_date','expiry','exp_date','expire'])
+    const distIdx   = pick(headers, ['distributor','supplier','vendor'])
+    const phoneIdx  = pick(headers, ['distributor_phone','supplier_phone','vendor_phone','phone','phone_e164'])
+
+    if (prodIdx < 0 || qtyIdx < 0) {
+      return NextResponse.json({
+        error: `CSV must include product and qty columns. Looked for any of:
+product: product, sku, barcode, name, item, code
+qty: qty, quantity, stock_qty`
+      }, { status: 400 })
+    }
+
+    // Optional: batch id if table requires it
+    let batch_id: string | null = null
+    if (shape.stock.cols.batch_id) {
+      const { data } = await svc.rpc('gen_random_uuid' as any)
+      batch_id = data ?? null
+    }
+
+    const payload: any[] = []
+    for (const r of rows) {
+      const product = (r[prodIdx] || '').toString().trim()
+      if (!product) continue
+      const qtyRaw = Number((r[qtyIdx] ?? '0').toString().replace(/[^0-9.\-]/g, ''))
+      const qty = Number.isFinite(qtyRaw) ? qtyRaw : 0
+      const expiry = expiryIdx >= 0 ? (r[expiryIdx] || '').toString().trim() : ''
+      const distributor = distIdx >= 0 ? (r[distIdx] || '').toString().trim() : ''
+      const dist_phone  = phoneIdx >= 0 ? (r[phoneIdx] || '').toString().trim() : ''
+
+      const rec: any = {}
+      // product-esque column
+      if (shape.stock.cols.product) rec.product = product
+      else if (shape.stock.cols.sku) rec.sku = product
+      else if (shape.stock.cols.barcode) rec.barcode = product
+      else rec.product = product
+
+      // qty-like
+      if (shape.stock.cols.qty) rec.qty = qty
+      else if (shape.stock.cols.quantity) rec.quantity = qty
+      else rec.qty = qty
+
+      // optional columns
+      if (expiry && (shape.stock.cols.expiry_date || shape.stock.cols.expiry || shape.stock.cols.exp_date)) {
+        if (shape.stock.cols.expiry_date) rec.expiry_date = expiry
+        else if (shape.stock.cols.expiry) rec.expiry = expiry
+        else if (shape.stock.cols.exp_date) rec.exp_date = expiry
+      }
+      if (distributor && (shape.stock.cols.distributor || shape.stock.cols.supplier || shape.stock.cols.vendor)) {
+        if (shape.stock.cols.distributor) rec.distributor = distributor
+        else if (shape.stock.cols.supplier) rec.supplier = distributor
+        else if (shape.stock.cols.vendor) rec.vendor = distributor
+      }
+      if (dist_phone && (shape.stock.cols.distributor_phone || shape.stock.cols.supplier_phone || shape.stock.cols.vendor_phone || shape.stock.cols.phone || shape.stock.cols.phone_e164)) {
+        if (shape.stock.cols.distributor_phone) rec.distributor_phone = dist_phone
+        else if (shape.stock.cols.supplier_phone) rec.supplier_phone = dist_phone
+        else if (shape.stock.cols.vendor_phone) rec.vendor_phone = dist_phone
+        else if (shape.stock.cols.phone_e164) rec.phone_e164 = dist_phone
+        else if (shape.stock.cols.phone) rec.phone = dist_phone
+      }
+
+      if (shape.stock.cols.org_id && org_id) rec.org_id = org_id
       if (shape.stock.cols.uploaded_by) rec.uploaded_by = userId
       if (shape.stock.cols.created_by) rec.created_by = userId
-      return rec
-    }).filter(r => r.product && !Number.isNaN(r.qty))
+      if (shape.stock.cols.batch_id && batch_id) rec.batch_id = batch_id
+      if (shape.stock.cols.status) rec.status = 'NEW'
 
-    if (!payload.length) return NextResponse.json({ ok: true, inserted: 0 })
+      payload.push(rec)
+      if (payload.length >= 10000) break
+    }
+
+    if (!payload.length) return NextResponse.json({ error: 'No valid rows' }, { status: 400 })
+
     const { error } = await svc.from(shape.stock.table).insert(payload)
     if (error) throw error
 
-    return NextResponse.json({ ok: true, inserted: payload.length })
+    return NextResponse.json({ ok: true, inserted: payload.length, table: shape.stock.table })
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Failed to upload stock' }, { status: 500 })
   }
