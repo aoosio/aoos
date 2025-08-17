@@ -1,8 +1,11 @@
 // lib/db-adapter.ts
 import { getServiceClient } from './supabase-server'
 
-type TableCols = Record<string, boolean>
-type Shape = {
+/** Explicit module marker for TS watchers */
+export {}
+
+export type TableCols = Record<string, boolean>
+export type Shape = {
   orgs: { table: string; cols: TableCols }
   members: { table: string; cols: TableCols }
   outbox: { table: string; variant: 'whatsapp' | 'plain'; cols: TableCols }
@@ -10,10 +13,10 @@ type Shape = {
   stock: { table: string; cols: TableCols }
   waChannel: { table: string; cols: TableCols }
   suppliers: { table: string; cols: TableCols }
-  invites?: { table: string; cols: TableCols }          // NEW
-  templates?: { table: string; cols: TableCols }        // NEW
-  pOwners?: { table: string; cols: TableCols }          // NEW
-  pAdmins?: { table: string; cols: TableCols }          // NEW
+  invites?: { table: string; cols: TableCols }
+  templates?: { table: string; cols: TableCols }
+  pOwners?: { table: string; cols: TableCols }
+  pAdmins?: { table: string; cols: TableCols }
 }
 
 let cached: Shape | null = null
@@ -67,20 +70,17 @@ export async function getDbShape(): Promise<Shape> {
   const suppliersTable =
     (await resolveTable(['suppliers','org_suppliers','organization_suppliers'])) || 'suppliers'
 
-  // Optional tables
-  const invitesTable = await resolveTable(['org_invites','organization_invites','invites'])
+  const invitesTable   = await resolveTable(['org_invites','organization_invites','invites'])
   const templatesTable = await resolveTable(['message_templates','templates'])
-  const pOwnersTable = await resolveTable(['platform_owners','owners_platform','platform_owner'])
-  const pAdminsTable = await resolveTable(['platform_admins','admins_platform','platform_admin'])
+  const pOwnersTable   = await resolveTable(['platform_owners','owners_platform','platform_owner'])
+  const pAdminsTable   = await resolveTable(['platform_admins','admins_platform','platform_admin'])
 
   const shape: Shape = {
     orgs: {
       table: orgTable,
       cols: await cols(orgTable, [
-        'id',
-        'created_by',
-        'name',
-        // extended org fields (schema-adaptive)
+        'id','created_by','name',
+        // extended org fields
         'industry_type','org_type','type',
         'country','state','phone',
         'default_language',
@@ -100,12 +100,18 @@ export async function getDbShape(): Promise<Shape> {
     },
     sales: {
       table: salesTable,
-      cols: await cols(salesTable, ['product','sku','barcode','sold_qty','quantity','qty','org_id','uploaded_by','created_by','batch_id','status']),
+      cols: await cols(salesTable, [
+        'product','sku','barcode',
+        'sold_qty','quantity','qty',
+        'org_id','uploaded_by','created_by','batch_id','status'
+      ]),
     },
     stock: {
       table: stockTable,
       cols: await cols(stockTable, [
-        'product','sku','barcode','qty','quantity','expiry_date','expiry','exp_date',
+        'product','sku','barcode',
+        'qty','quantity',
+        'expiry_date','expiry','exp_date',
         'distributor','supplier','vendor',
         'distributor_phone','supplier_phone','vendor_phone','phone','phone_e164',
         'org_id','uploaded_by','created_by','batch_id','status'
@@ -120,21 +126,28 @@ export async function getDbShape(): Promise<Shape> {
     suppliers: {
       table: suppliersTable,
       cols: await cols(suppliersTable, [
-        'id','name','supplier_name','phone','phone_e164','preferred_language','language','lang',
-        'org_id','created_by','updated_by','created_at','updated_at','is_active'
+        'id','name','supplier_name',
+        'phone','phone_e164',
+        'preferred_language','language','lang',
+        'org_id','created_by','updated_by',
+        'created_at','updated_at','is_active'
       ]),
     },
   }
 
-  if (invitesTable) shape.invites = { table: invitesTable, cols: await cols(invitesTable, ['org_id','email','role','status','invited_by','user_id','created_at','accepted_at']) }
+  if (invitesTable)   shape.invites   = { table: invitesTable,   cols: await cols(invitesTable,   ['org_id','email','role','status','invited_by','user_id','created_at','accepted_at']) }
   if (templatesTable) shape.templates = { table: templatesTable, cols: await cols(templatesTable, [
     'id','name','key','slug','lang','language','scope','template_scope','org_id','text','body','content','linked_action','action','enabled','is_active','updated_at'
   ])}
-  if (pOwnersTable) shape.pOwners = { table: pOwnersTable, cols: await cols(pOwnersTable, ['user_id','is_active']) }
-  if (pAdminsTable) shape.pAdmins = { table: pAdminsTable, cols: await cols(pAdminsTable, ['user_id','is_active']) }
+  if (pOwnersTable)   shape.pOwners   = { table: pOwnersTable,   cols: await cols(pOwnersTable,   ['user_id','is_active']) }
+  if (pAdminsTable)   shape.pAdmins   = { table: pAdminsTable,   cols: await cols(pAdminsTable,   ['user_id','is_active']) }
 
   cached = shape
   return shape
 }
 
 export function _clearDbShapeCache(){ cached = null }
+
+/** Also expose a default export to silence any exotic TS resolver edge cases */
+const DbAdapter = { getDbShape, _clearDbShapeCache }
+export default DbAdapter
