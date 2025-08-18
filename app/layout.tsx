@@ -1,3 +1,4 @@
+'use client'
 import type { Metadata } from 'next'
 import './globals.css'          // إن وُجدت
 import { I18nProvider } from '@/lib/i18n'
