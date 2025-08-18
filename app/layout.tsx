@@ -1,17 +1,20 @@
-import './globals.css'
-import Topbar from '@/components/layout/Topbar'
-import Sidebar from '@/components/layout/Sidebar'
+import type { Metadata } from 'next'
+import { I18nProvider } from '@/lib/i18n'
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export const runtime = 'nodejs' // نريد Node runtime (بعض حِزم supabase لا تعمل على Edge)
+
+export const metadata: Metadata = {
+  title: 'AOOS',
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen">
-      <Topbar />
-      <div className="mx-auto grid max-w-7xl grid-cols-1 md:grid-cols-[260px_1fr] gap-6 px-6 py-6">
-        <aside className="hidden md:block">
-          <Sidebar />
-        </aside>
-        <main>{children}</main>
-      </div>
-    </div>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <I18nProvider initialLang="en">
+          {children}
+        </I18nProvider>
+      </body>
+    </html>
   )
 }
