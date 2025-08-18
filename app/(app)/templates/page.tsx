@@ -22,24 +22,17 @@ export default function TemplatesPage() {
     if (!data.canEditGlobal) return
     setBusy(true); setMsg(null)
     try {
-      const r = await fetch('/api/templates/save', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, lang, body }),
-      })
+      const r = await fetch('/api/templates/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, lang, body }) })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'Save failed')
-      setMsg('Saved')
-      await load()
+      setMsg('Saved'); await load()
     } catch (e:any) { setMsg(e.message) } finally { setBusy(false) }
   }
 
   return (
     <section>
       <h1 className="text-xl font-semibold">Message Templates</h1>
-      <p className="mt-2 text-neutral-700">
-        All templates are visible. {data.canEditGlobal ? 'You can edit GLOBAL.' : 'Read-only for org users.'}
-      </p>
-
+      <p className="mt-2 text-neutral-700">All templates are visible. {data.canEditGlobal ? 'You can edit GLOBAL.' : 'Read-only for org users.'}</p>
       {msg && <p className="mt-3 text-sm">{msg}</p>}
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -65,7 +58,3 @@ export default function TemplatesPage() {
     </section>
   )
 }
-// Note: This code assumes you have a backend API at /api/templates/list and /api/templates/save
-// that handles fetching and saving templates respectively. Adjust the API endpoints as needed.
-// The code also assumes you have a CSS framework like Tailwind CSS for styling.
-// If you don't, you can replace the class names with your own styles.                    

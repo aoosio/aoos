@@ -1,21 +1,15 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-
 type Supplier = { id: string; name: string; phone: string }
 
 export default function NewPOPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [q, setQ] = useState('')
-  const [supplierId, setSupplierId] = useState<string>('')
-  const [poMsg, setPoMsg] = useState<string | null>(null)
-
-  useEffect(() => {
-    (async () => {
-      const res = await fetch('/api/suppliers/list', { cache: 'no-store' })
-      const j = await res.json()
-      if (res.ok) setSuppliers(j.suppliers || []); else setPoMsg(j.error || 'Failed to load suppliers')
-    })()
-  }, [])
+  const [q, setQ] = useState(''); const [supplierId, setSupplierId] = useState<string>(''); const [poMsg, setPoMsg] = useState<string | null>(null)
+  useEffect(() => { (async () => {
+    const res = await fetch('/api/suppliers/list', { cache: 'no-store' })
+    const j = await res.json()
+    if (res.ok) setSuppliers(j.suppliers || []); else setPoMsg(j.error || 'Failed to load suppliers')
+  })() }, [])
 
   const filtered = useMemo(() => {
     const k = q.trim().toLowerCase()
@@ -26,7 +20,6 @@ export default function NewPOPage() {
   async function createPO() {
     setPoMsg(null)
     if (!supplierId) { setPoMsg('Select a supplier'); return }
-    // TODO: call your /api/pos/create when ready; for now just confirm selection
     setPoMsg('Supplier selected. Implement /api/pos/create to finalize PO.')
   }
 

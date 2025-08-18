@@ -17,6 +17,8 @@
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.45.0",
+    "buidl": "^1.0.6",
+    "build": "^0.1.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.425.0",
