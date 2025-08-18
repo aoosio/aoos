@@ -1,92 +1,71 @@
-import { cookies } from 'next/headers'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { getServiceClient, getRoles, ensureOrgContext } from '@/lib/supabase-server'
-import { revalidatePath } from 'next/cache'
+'use client'
+import { useEffect, useState } from 'react'
 
-async function resolveTemplatesTable(): Promise<string> {
-  const svc = getServiceClient()
-  const tryHead = async (t: string) => {
-    const { error } = await svc.from(t).select('*', { head: true }).limit(1)
-    return !error
+type Tmpl = { id?: string; key: string; lang: string; scope: 'GLOBAL'|'ORG'; body?: string | null }
+type Payload = { globals: Tmpl[]; orgs: Tmpl[]; canEditGlobal: boolean }
+
+export default function TemplatesPage() {
+  const [data, setData] = useState<Payload>({ globals: [], orgs: [], canEditGlobal: false })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  async function load() {
+    setMsg(null)
+    const r = await fetch('/api/templates/list', { cache: 'no-store' })
+    const j = await r.json()
+    if (!r.ok) setMsg(j.error || 'Failed to load templates')
+    else setData(j)
   }
-  if (await tryHead('message_templates')) return 'message_templates'
-  if (await tryHead('templates')) return 'templates'
-  return 'message_templates' // default
-}
+  useEffect(() => { load() }, [])
 
-// server action to save GLOBAL templates (Platform Owner only)
-async function saveTemplate(formData: FormData) {
-  'use server'
-  const supa = createServerComponentClient({ cookies })
-  const { data } = await supa.auth.getUser()
-  if (!data?.user?.id) return
-
-  const roles = await getRoles(data.user.id)
-  if (!roles.is_platform_owner) return // only owners can edit GLOBAL
-
-  const table = await resolveTemplatesTable()
-  const key = String(formData.get('key') || '')
-  const lang = String(formData.get('lang') || 'en')
-  const body = String(formData.get('body') || '')
-
-  if (!key) return
-  const svc = getServiceClient()
-  await svc.from(table).upsert({ key, lang, scope: 'GLOBAL', body }, { onConflict: 'key,lang,scope' })
-  revalidatePath('/templates')
-}
-
-export default async function TemplatesPage() {
-  const supa = createServerComponentClient({ cookies })
-  const { data } = await supa.auth.getUser()
-  const uid = data?.user?.id || null
-  const roles = uid ? await getRoles(uid) : { is_platform_owner: false, is_platform_admin: false, org_role: null as string | null }
-  const isStaff = !!(roles.is_platform_owner || roles.is_platform_admin)
-  const org_id = uid ? await ensureOrgContext(uid) : null
-  const table = await resolveTemplatesTable()
-
-  // fetch all GLOBAL + (optional) ORG templates
-  const svc = getServiceClient()
-  const { data: globals } = await svc.from(table).select('*').eq('scope', 'GLOBAL').order('key')
-  const orgs = org_id ? (await svc.from(table).select('*').eq('scope', 'ORG').eq('org_id', org_id).order('key')).data || [] : []
-
-  const rows = [
-    ...(globals || []).map((r: any) => ({ ...r, _scope: 'GLOBAL' })),
-    ...(orgs || []).map((r: any) => ({ ...r, _scope: 'ORG' })),
-  ]
+  async function save(key: string, lang: string, body: string) {
+    if (!data.canEditGlobal) return
+    setBusy(true); setMsg(null)
+    try {
+      const r = await fetch('/api/templates/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, lang, body }),
+      })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error || 'Save failed')
+      setMsg('Saved')
+      await load()
+    } catch (e:any) { setMsg(e.message) } finally { setBusy(false) }
+  }
 
   return (
     <section>
       <h1 className="text-xl font-semibold">Message Templates</h1>
       <p className="mt-2 text-neutral-700">
-        All templates are visible. {isStaff ? 'Platform Owners can edit GLOBAL.' : 'Read-only for organization users.'}
+        All templates are visible. {data.canEditGlobal ? 'You can edit GLOBAL.' : 'Read-only for org users.'}
       </p>
 
+      {msg && <p className="mt-3 text-sm">{msg}</p>}
+
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {rows.map((t) => (
-          <form key={`${t.key}:${t.lang}:${t._scope}`} action={isStaff && t._scope === 'GLOBAL' ? saveTemplate : undefined} className="rounded border p-4 shadow-soft">
+        {[...data.globals.map(t => ({...t,_scope:'GLOBAL'} as any)), ...data.orgs.map(t => ({...t,_scope:'ORG'} as any))].map((t:any) => (
+          <div key={`${t.key}:${t.lang}:${t._scope}`} className="rounded border p-4 shadow-soft">
             <div className="text-xs uppercase tracking-wide text-neutral-500">{t._scope}</div>
             <div className="mt-1 font-semibold">{t.key}</div>
             <div className="mt-1 text-sm text-neutral-500">Language: {t.lang}</div>
-            <input type="hidden" name="key" value={t.key} />
-            <input type="hidden" name="lang" value={t.lang} />
             <textarea
-              name="body"
               defaultValue={t.body || ''}
               className="mt-3 h-28 w-full rounded border p-2"
-              placeholder="Body…"
-              readOnly={!(isStaff && t._scope === 'GLOBAL')}
+              readOnly={!(data.canEditGlobal && t._scope === 'GLOBAL')}
+              onBlur={(e) => {
+                const val = e.currentTarget.value
+                if (data.canEditGlobal && t._scope === 'GLOBAL') save(t.key, t.lang, val)
+              }}
             />
-            <div className="mt-3 flex gap-2">
-              {isStaff && t._scope === 'GLOBAL' ? (
-                <button className="rounded bg-brand px-3 py-1.5 text-white">Save</button>
-              ) : (
-                <span className="rounded bg-neutral-100 px-2 py-1 text-xs">Read-only</span>
-              )}
-            </div>
-          </form>
+            <div className="mt-2 text-xs text-neutral-500">{data.canEditGlobal && t._scope === 'GLOBAL' ? 'Auto-saves on blur' : 'Read-only'}</div>
+          </div>
         ))}
-        {!rows.length && <div className="rounded border p-4 text-sm">No templates yet.</div>}
+        {!data.globals.length && !data.orgs.length && <div className="rounded border p-4 text-sm">No templates yet.</div>}
       </div>
     </section>
   )
 }
+// Note: This code assumes you have a backend API at /api/templates/list and /api/templates/save
+// that handles fetching and saving templates respectively. Adjust the API endpoints as needed.
+// The code also assumes you have a CSS framework like Tailwind CSS for styling.
+// If you don't, you can replace the class names with your own styles.                    

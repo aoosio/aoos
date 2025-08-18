@@ -1,3 +1,4 @@
+import './globals.css'
 import Topbar from '@/components/layout/Topbar'
 import Sidebar from '@/components/layout/Sidebar'
 
