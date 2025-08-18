@@ -1,8 +1,6 @@
-// app/(app)/layout.tsx
+'use client'
+import { I18nProvider } from '@/lib/i18n'
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen">
-      <main>{children}</main>
-    </div>
-  )
+  return <I18nProvider>{children}</I18nProvider>
 }
